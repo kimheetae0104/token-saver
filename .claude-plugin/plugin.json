@@ -2,6 +2,7 @@
   "name": "token-saver",
   "description": "Model-tier routing ladder (Haiku -> verify -> escalate) + waste-detection coaching hooks for Claude Code. Measured savings only (own harness cost model), no vendor claims. Early stage: v0.x, calibrated on N=6 sessions.",
   "version": "0.1.0",
+  "license": "MIT",
   "author": {
     "name": "kimheetae0104",
     "url": "https://github.com/kimheetae0104"

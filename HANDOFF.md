@@ -115,6 +115,38 @@ Claude Code **토큰 세이버 툴킷**. 북극성: 토큰 최소화가 아니�
    건강한 위임이 실제로 8~10 근처에서 더 자주 나올지, 아니면 12 근처의 새 정상 사례가 나올지는
    세션이 몇 개 더 쌓여야 판단 가능.
 
+## 시장 비교 + 플러그인 배포 (2026-08-04 4차, 완료)
+- **경쟁 도구 실측 비교**: Ponytail·RTK·Caveman·Headroom·CBM·context-mode 조사(WebSearch).
+  핵심 발견 — JetBrains(Denis Shiryaev)가 독립 재측정한 3개 중 벤더 주장 생존은 **Ponytail 하나뿐**
+  (주장 47~77% vs 실측 −10.3%, p=0.004). **RTK는 오히려 비용 +7.6%**(허수 counterfactual로 절감
+  카운터 조작 확인), Caveman은 주장 65% vs 실측 −8.5~9%. Headroom·CBM·context-mode는 독립 재현
+  자체가 없음(벤더 수치만). "코드버닝"은 검색해도 실체 없음(사용자가 지칭한 이름 확인 안 됨).
+  → 이 프로젝트가 RTK가 실패한 바로 그 함정(캐시 재읽기를 원가로 셈, 존재 안 하는 원본과 비교)을
+  애초에 `measure.py`의 5-facet 실제과금 단가 설계로 피해감을 재확인. 상세는 세션 대화 로그 참고
+  (별도 문서화 안 함 — 일회성 조사).
+- **플러그인 패키징 + GitHub 배포**: `git init`(main 브랜치) → `.claude-plugin/plugin.json` +
+  `marketplace.json`(source `"./"`, 자기 자신을 마켓플레이스로 등록) → `hooks/hooks.json`
+  (`.claude/settings.json`의 훅을 `${CLAUDE_PLUGIN_ROOT}` 경로로 이전, 원본은 로컬 개발용으로 유지) →
+  `README.md`(N=6·v0.x·production_failures 0건 명시, 벤더주장 안 함 원칙 명시) → `LICENSE`(MIT).
+  `claude plugin validate` 통과. `gh repo create kimheetae0104/token-saver --public --push`로 배포 완료:
+  https://github.com/kimheetae0104/token-saver
+- **실치 설치 검증**: `claude plugin marketplace add` → `install` → `list`/`details` 실사이클 확인
+  (훅 2개 인식, 상시토큰비용 0). 이 프로젝트 자체가 로컬 `.claude/settings.json`으로 같은 훅을 이미
+  쓰고 있어 user-scope 설치 시 중복 실행되므로, 검증 후 uninstall + marketplace remove로 원복함
+  (전역으로 계속 설치해둘지는 사용자 선택 사항으로 남김).
+- **커뮤니티 마켓플레이스 정식 제출은 보류** — 사용자 결정: N=6 상태로 정식 제출하면 방금 비교에서
+  지적한 "미성숙한 주장을 자신있게 내놓는" 함정에 스스로 빠지는 것과 같다는 판단.
+
+## 열린 스레드 — 다음 세션 후보 (2026-08-04 4차 갱신)
+1. **`production_failures.jsonl` 영속성 버그** — 현재 로그 경로가 `measure.py` 자기 위치
+   기준(`os.path.dirname(__file__)`)이라, 플러그인으로 설치된 경우 `${CLAUDE_PLUGIN_ROOT}`가
+   업데이트마다 바뀌는 임시 경로라서 **업데이트 시 로그가 유실될 수 있음**(README에 알려진 제한으로
+   명시해둠). 고치려면 `${CLAUDE_PLUGIN_DATA}`(업데이트 간 유지되는 경로)를 훅 커맨드 인자로 넘기고
+   `measure.py`가 이를 우선 사용하도록 변경. 지금은 실사용자가 아직 없어(N=0) 급하지 않음 — 실제
+   설치자가 생기기 전에 고칠 것.
+2. **many_agents 재검토**: (3차 갱신 항목과 동일, 아직 미해결) outlier 1건 제외로 정한 12가
+   세션 누적 후에도 유지될지 확인 필요.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
