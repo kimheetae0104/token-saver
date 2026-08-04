@@ -11,7 +11,10 @@ def main():
         payload = json.load(sys.stdin)
     except Exception:
         return
-    prompt = (payload.get("prompt") or "").strip()
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str):
+        return
+    prompt = prompt.strip()
     if not prompt:
         return
 

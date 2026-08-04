@@ -154,6 +154,26 @@ Claude Code **토큰 세이버 툴킷**. 북극성: 토큰 최소화가 아니�
    나와야 실제로 판단 가능. 검증: `measure.autopsy()` 직접 호출로 7개 세션 전부 재확인
    (스크립트에서 `proxies(sess, per_turn)` 인자 순서 실수 한 번 했다가 바로잡음).
 
+## 성능/신뢰도 테스트 로드맵 (2026-08-04 5차, 진행 중)
+사용자 요청: "성능이랑 신뢰도 테스트" — 4갈래로 분해.
+1. ~~플러그인 자체 안정성(훅 엣지케이스)~~ **완료(2026-08-04)**: `intent_gate.py`·`habit_coaching.py`
+   ·`measure.py --check/--statusline/--capture-failures`를 빈 stdin·손상 JSON·비문자열 prompt·
+   디렉터리 경로 등 26케이스로 방어적 테스트(무료, API 호출 없음). **실버그 3종 발견·수정**:
+   (a) `intent_gate.py`/`habit_coaching.py` — `prompt`가 문자열이 아니면(int·array) `.strip()`에서
+   미처리 예외로 훅이 죽음 → `isinstance(prompt, str)` 가드 추가. (b) `measure.py`의 `do_check`
+   `do_statusline`·`do_capture_failures` 3곳 — `transcript_path`가 디렉터리면 `os.path.exists()`가
+   True를 반환해 통과한 뒤 `open()`에서 `IsADirectoryError`로 죽음 → `os.path.isfile()`로 교체.
+   `session_autopsy.sh`는 bash `[ -f "$path" ]` 가드가 이미 있어 해당 안 됨(정상 확인).
+   CLI 전용 경로(`--autopsy` 포지셔널 인자)는 사람이 직접 넣는 값이라 훅 안전성과 무관, 손 안 댐.
+   테스트 하네스는 일회성(스크래치패드, 삭제됨) — 재현 필요시 이 항목 설명대로 재작성.
+2. **과제 다양성 확대(대기)**: 실험8/8확대는 "직관대로 풀리는" 기계적 과제(코드+테스트, 버그+lint,
+   변환+schema) 3종만 검증(N=30 포함). 리팩터·설정편집·멀티파일 컨텍스트 등 다른 유형은 미검증.
+   다음 세션에서 과제셋 설계 + 예상 비용 산정 → 사용자 승인 후 실행 예정(실비용 발생, 이전
+   실험8확대 기준 30콜=$0.58 정도가 참고 스케일).
+3. **many_agents 데이터 축적**: 액션 불가(실측만 기록 원칙) — 세션 자연 누적 대기.
+4. **경쟁 도구 head-to-head(대기)**: Ponytail 등 실제 설치 가능 여부부터 확인 필요 — 설치는
+   외부 플러그인이라 명시적 승인 필요. 다음 세션에서 실현가능성 조사부터.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).

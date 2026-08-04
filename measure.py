@@ -574,7 +574,7 @@ def do_statusline():
     except Exception:
         payload = {}
     path = payload.get("transcript_path") or latest_session()
-    if not path or not os.path.exists(path):
+    if not path or not os.path.isfile(path):
         print("token: n/a")
         return
     tot, per_turn = aggregate(parse_session(path))
@@ -589,7 +589,7 @@ def do_check():
     except Exception:
         payload = {}
     path = payload.get("transcript_path") or latest_session()
-    if not path or not os.path.exists(path):
+    if not path or not os.path.isfile(path):
         return
     tot, per_turn = aggregate(parse_session(path))
     if not per_turn:
@@ -610,7 +610,7 @@ def do_capture_failures(path, data_dir=None):
     data_dir이 주어지면(플러그인 설치 시 ${CLAUDE_PLUGIN_DATA}) 그 경로에 쓴다 —
     ${CLAUDE_PLUGIN_ROOT}는 플러그인 업데이트마다 바뀌는 임시 경로라 로그 유실 위험이 있어서다."""
     path = path or latest_session()
-    if not path or not os.path.exists(path):
+    if not path or not os.path.isfile(path):
         return
     log_path = os.path.join(data_dir, "production_failures.jsonl") if data_dir else None
     candidates = capture_failures(path, log_path=log_path)
