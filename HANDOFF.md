@@ -138,12 +138,14 @@ Claude Code **토큰 세이버 툴킷**. 북극성: 토큰 최소화가 아니�
   지적한 "미성숙한 주장을 자신있게 내놓는" 함정에 스스로 빠지는 것과 같다는 판단.
 
 ## 열린 스레드 — 다음 세션 후보 (2026-08-04 4차 갱신)
-1. **`production_failures.jsonl` 영속성 버그** — 현재 로그 경로가 `measure.py` 자기 위치
-   기준(`os.path.dirname(__file__)`)이라, 플러그인으로 설치된 경우 `${CLAUDE_PLUGIN_ROOT}`가
-   업데이트마다 바뀌는 임시 경로라서 **업데이트 시 로그가 유실될 수 있음**(README에 알려진 제한으로
-   명시해둠). 고치려면 `${CLAUDE_PLUGIN_DATA}`(업데이트 간 유지되는 경로)를 훅 커맨드 인자로 넘기고
-   `measure.py`가 이를 우선 사용하도록 변경. 지금은 실사용자가 아직 없어(N=0) 급하지 않음 — 실제
-   설치자가 생기기 전에 고칠 것.
+1. ~~`production_failures.jsonl` 영속성 버그~~ **완료(2026-08-04)**: `measure.py`에 `--data-dir` 인자
+   추가(`do_capture_failures`가 우선 사용, 없으면 기존 `PRODUCTION_LOG` 상대경로로 폴백). 배선:
+   `hooks/hooks.json`의 Stop 훅이 `CLAUDE_PLUGIN_DATA` 환경변수를 명시적으로 export하며
+   `session_autopsy.sh` 호출 → 스크립트가 그 값이 있으면 `--data-dir "$CLAUDE_PLUGIN_DATA"`를 붙여
+   `measure.py`에 전달, 없으면(로컬 프로젝트 사용) 기존 그대로. 4가지 경로(CLI --data-dir 있음/없음,
+   훅 스크립트 env 있음/없음) 합성 픽스처로 전부 검증 — 로컬 동작 불변, 플러그인 경로는 영속
+   디렉터리에 씀. 테스트 중 실수로 실제 `experiments/production_failures.jsonl`에 합성 항목이
+   1건 써졌던 것 발견해 즉시 삭제(실측 로그 오염 방지). README "알려진 제한사항"에서 이 항목 제거.
 2. **many_agents 재검토**: (3차 갱신 항목과 동일, 아직 미해결) outlier 1건 제외로 정한 12가
    세션 누적 후에도 유지될지 확인 필요.
 

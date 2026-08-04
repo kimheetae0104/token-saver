@@ -600,19 +600,22 @@ def do_check():
         print(" ".join(msgs))
 
 
-def do_capture_failures(path):
+def do_capture_failures(path, data_dir=None):
     """Stop hook용: Haiku 1차 실패 후보(에스컬레이션·사용자 교정)를 감지해 로그에 누적.
-    새 후보가 있을 때만 한 줄 출력(없으면 침묵)."""
+    새 후보가 있을 때만 한 줄 출력(없으면 침묵).
+    data_dir이 주어지면(플러그인 설치 시 ${CLAUDE_PLUGIN_DATA}) 그 경로에 쓴다 —
+    ${CLAUDE_PLUGIN_ROOT}는 플러그인 업데이트마다 바뀌는 임시 경로라 로그 유실 위험이 있어서다."""
     path = path or latest_session()
     if not path or not os.path.exists(path):
         return
-    candidates = capture_failures(path)
+    log_path = os.path.join(data_dir, "production_failures.jsonl") if data_dir else None
+    candidates = capture_failures(path, log_path=log_path)
     if candidates:
         kinds = {}
         for c in candidates:
             kinds[c["type"]] = kinds.get(c["type"], 0) + 1
         detail = ", ".join(f"{k}×{v}" for k, v in kinds.items())
-        print(f"📋 실패 후보 {len(candidates)}건 포착({detail}) → experiments/production_failures.jsonl")
+        print(f"📋 실패 후보 {len(candidates)}건 포착({detail}) → {log_path or PRODUCTION_LOG}")
 
 
 def main():
@@ -624,6 +627,7 @@ def main():
     ap.add_argument("--statusline", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--capture-failures", action="store_true")
+    ap.add_argument("--data-dir", help="production_failures.jsonl을 쓸 영속 디렉터리(플러그인 설치 시 ${CLAUDE_PLUGIN_DATA})")
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--quality", type=float)
     ap.add_argument("--tokens", type=int)
@@ -634,7 +638,7 @@ def main():
     if args.check:
         return do_check()
     if args.capture_failures:
-        return do_capture_failures(args.session or latest_session())
+        return do_capture_failures(args.session or latest_session(), data_dir=args.data_dir)
     if args.all:
         return print_all()
     if args.diff:

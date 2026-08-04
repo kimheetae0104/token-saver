@@ -6,5 +6,9 @@ try: print(json.load(sys.stdin).get("transcript_path",""))
 except Exception: print("")' 2>/dev/null)
 if [ -n "$path" ] && [ -f "$path" ]; then
   python3 "$(dirname "$0")/../measure.py" --autopsy "$path"
-  python3 "$(dirname "$0")/../measure.py" --capture-failures "$path"
+  if [ -n "$CLAUDE_PLUGIN_DATA" ]; then
+    python3 "$(dirname "$0")/../measure.py" --capture-failures "$path" --data-dir "$CLAUDE_PLUGIN_DATA"
+  else
+    python3 "$(dirname "$0")/../measure.py" --capture-failures "$path"
+  fi
 fi

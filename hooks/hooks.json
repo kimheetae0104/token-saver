@@ -12,7 +12,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session_autopsy.sh\"" }
+          { "type": "command", "command": "CLAUDE_PLUGIN_DATA=\"${CLAUDE_PLUGIN_DATA}\" bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session_autopsy.sh\"" }
         ]
       }
     ]
