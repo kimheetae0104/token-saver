@@ -173,8 +173,17 @@ Claude Code **토큰 세이버 툴킷**. 북극성: 토큰 최소화가 아니�
    상세: `experiments/PROTOCOL.md` 실험8 과제다양성 addendum, 코드: `experiments/ladder_real/
    {task_d_refactor,task_e_config,task_f_multifile,grade_diversity}.py`.
 3. **many_agents 데이터 축적**: 액션 불가(실측만 기록 원칙) — 세션 자연 누적 대기.
-4. **경쟁 도구 head-to-head(대기)**: Ponytail 등 실제 설치 가능 여부부터 확인 필요 — 설치는
-   외부 플러그인이라 명시적 승인 필요. 다음 세션에서 실현가능성 조사부터.
+4. ~~경쟁 도구 head-to-head~~ **결론: 설치 안 함(2026-08-04)**: Ponytail 설치 가능 여부는 확인됨
+   (GitHub API로 `.claude-plugin/plugin.json`·`hooks/claude-codex-hooks.json` 직접 조회 — 우리와
+   동일한 `/plugin marketplace add` 방식으로 설치 가능, `SessionStart`+`SubagentStart` 훅으로
+   "게으른 시니어" 지시를 시스템 컨텍스트에 주입하는 방식임을 확인).
+   **그런데 설치를 안 하기로 함** — Ponytail은 **모델 라우팅이 아니라 프롬프트/행동 레벨 넛지**
+   (어느 모델을 쓰든 "불필요한 추상화 자제" 지시를 주입)라서, 이 프로젝트의 "어느 모델에게 맡길지"
+   라우팅 사다리와 애초에 다른 레버 — 직접 맞대결은 범주 오류. 게다가 우리 D/E/F 벤치마크(한
+   함수짜리 초미니 스펙)는 "불필요한 추상화 여지"가 거의 없어 Ponytail의 실제 타겟(README:
+   "no unrequested abstractions")을 테스트하기에도 부적합. 이미 존재하는 JetBrains 독립
+   재측정(N=86, 주장 47~77% vs 실측 -10.3%, p=0.004)이 우리가 소규모로 자체 재현하는 것보다
+   통계적으로 훨씬 강함 — 그 결과를 그대로 채택하고 자체 설치·재현은 생략.
 
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
