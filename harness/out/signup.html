@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>가입 — 무명</title>
+<style>
+  :root{
+    --bg:#F7F4EF; --bg-sunk:#EFEAE2; --surface:#FFFFFF; --border:#DED7CC; --border-strong:#C4BAAB;
+    --ink:#23201B; --ink-soft:#55503f; --ink-muted:#6B6555; --ink-invert:#FBF9F5;
+    --accent:#9C5A3C; --accent-hover:#834A30; --accent-soft:#EDE0D6; --focus:#2F6FB0;
+    --error:#A32A22; --success:#3A6B47;
+    --fs-xs:0.75rem; --fs-sm:0.875rem; --fs-base:1rem; --fs-lg:1.25rem; --fs-xl:1.563rem;
+    --fs-2xl:1.953rem; --fs-3xl:2.441rem; --fs-4xl:3.052rem;
+    --lh-tight:1.15; --lh-body:1.6;
+    --ff-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    --fw-reg:400; --fw-med:500; --fw-semi:600;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+    --sp-6:32px; --sp-7:48px; --sp-8:64px; --sp-9:96px;
+    --r-sm:6px; --r-md:10px; --r-lg:16px; --r-pill:999px;
+    --shadow-1:0 1px 2px rgba(35,32,27,.05); --shadow-2:0 6px 20px rgba(35,32,27,.08);
+    --container:1120px; --gutter:var(--sp-5); --tap:44px;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:var(--fw-reg) var(--fs-base)/var(--lh-body) var(--ff-sans);
+    padding:var(--sp-9) var(--gutter);
+  }
+  a{cursor:pointer;}
+  a:focus-visible,button:focus-visible,input:focus-visible,label.terms:focus-within{
+    outline:2px solid var(--focus); outline-offset:2px;
+  }
+  .wrap{
+    max-width:440px; margin:0 auto;
+  }
+  .brand{
+    text-align:center; font-size:var(--fs-xl); font-weight:var(--fw-semi);
+    color:var(--ink); letter-spacing:.02em; margin:0 0 var(--sp-6);
+  }
+  h1{
+    text-align:center; font-size:var(--fs-lg); font-weight:var(--fw-semi);
+    color:var(--ink); line-height:var(--lh-tight); margin:0 0 var(--sp-2);
+  }
+  .sub{
+    text-align:center; color:var(--ink-soft); font-size:var(--fs-base);
+    margin:0 0 var(--sp-7);
+  }
+  form{
+    display:flex; flex-direction:column; gap:var(--sp-5);
+  }
+  .field label{
+    display:block; font-size:var(--fs-sm); font-weight:var(--fw-med);
+    color:var(--ink); margin-bottom:var(--sp-2);
+  }
+  .field input{
+    width:100%; min-height:48px; padding:12px 14px;
+    border:1px solid var(--border-strong); border-radius:var(--r-md);
+    background:var(--surface); font-size:var(--fs-base); color:var(--ink);
+    font-family:var(--ff-sans);
+  }
+  .field input::placeholder{ color:var(--ink-muted); }
+  .field input:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+  .helper{
+    font-size:var(--fs-sm); color:var(--ink-soft); margin-top:var(--sp-2);
+  }
+  .helper.error{
+    color:var(--error); font-weight:var(--fw-med);
+  }
+  .helper.error::before{
+    content:"⚠ "; /* dual-channel: icon + color, not color alone */
+  }
+  label.terms{
+    display:flex; align-items:center; gap:var(--sp-2);
+    min-height:44px; cursor:pointer; font-size:var(--fs-sm); color:var(--ink);
+  }
+  label.terms input[type="checkbox"]{
+    width:20px; height:20px; min-width:20px; min-height:20px;
+    accent-color:var(--accent); cursor:pointer; flex-shrink:0;
+  }
+  label.terms a{ color:var(--accent); text-decoration:underline; }
+  label.terms a:hover{ color:var(--accent-hover); }
+  button.submit{
+    width:100%; min-height:48px; background:var(--accent); color:var(--ink-invert);
+    border:none; border-radius:var(--r-md); font-size:var(--fs-base);
+    font-weight:var(--fw-semi); cursor:pointer; font-family:var(--ff-sans);
+  }
+  button.submit:hover{ background:var(--accent-hover); }
+  .login{
+    text-align:center; color:var(--ink-soft); font-size:var(--fs-sm);
+    margin-top:var(--sp-5);
+  }
+  .login a{
+    color:var(--accent); text-decoration:underline; padding:var(--sp-2) var(--sp-1);
+    display:inline-block; min-height:44px; line-height:28px;
+  }
+  .login a:hover{ color:var(--accent-hover); }
+  .notice{
+    text-align:center; color:var(--ink-soft); font-size:var(--fs-sm);
+    margin-top:var(--sp-6);
+  }
+  @media (max-width:640px){
+    body{ padding:var(--sp-6) var(--gutter); }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="brand">무명 MUMYUNG</p>
+    <h1>무명과 함께하기</h1>
+    <p class="sub">가입은 1분이면 충분합니다.</p>
+
+    <form id="signup-form" novalidate>
+      <div class="field">
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" autocomplete="email" inputmode="email"
+               placeholder="name@example.com" required>
+      </div>
+
+      <div class="field">
+        <label for="password">비밀번호</label>
+        <input type="password" id="password" name="password" autocomplete="new-password"
+               placeholder="8자 이상" required minlength="8">
+        <p class="helper">8자 이상, 영문과 숫자를 포함해 주세요</p>
+      </div>
+
+      <div class="field">
+        <label for="password-confirm">비밀번호 확인</label>
+        <input type="password" id="password-confirm" name="password-confirm" autocomplete="new-password" required>
+        <p class="helper" id="confirm-helper">같은 비밀번호를 한 번 더 입력해 주세요</p>
+      </div>
+
+      <label class="terms" for="terms">
+        <input type="checkbox" id="terms" name="terms" required>
+        <span>(필수) <a href="#">이용약관</a> 및 <a href="#">개인정보처리방침</a>에 동의합니다</span>
+      </label>
+
+      <button type="submit" class="submit">가입하기</button>
+    </form>
+
+    <p class="login">이미 계정이 있으신가요? <a href="#">로그인</a></p>
+    <p class="notice">가입하시면 신제품 소식을 가장 먼저 받아보실 수 있습니다.</p>
+  </div>
+
+  <script>
+    (function(){
+      var pw = document.getElementById('password');
+      var pwc = document.getElementById('password-confirm');
+      var helper = document.getElementById('confirm-helper');
+      var defaultText = helper.textContent;
+      var errorText = '비밀번호가 일치하지 않습니다';
+
+      function check(){
+        if(pwc.value.length > 0 && pw.value !== pwc.value){
+          helper.textContent = errorText;
+          helper.classList.add('error');
+          pwc.setCustomValidity(errorText);
+        } else {
+          helper.textContent = defaultText;
+          helper.classList.remove('error');
+          pwc.setCustomValidity('');
+        }
+      }
+      pw.addEventListener('input', check);
+      pwc.addEventListener('input', check);
+
+      document.getElementById('signup-form').addEventListener('submit', function(e){
+        e.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

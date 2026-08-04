@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>제품 — 무명</title>
+<style>
+:root{
+  --bg:            #F7F4EF;
+  --bg-sunk:       #EFEAE2;
+  --surface:       #FFFFFF;
+  --border:        #DED7CC;
+  --border-strong: #C4BAAB;
+  --ink:           #23201B;
+  --ink-soft:      #55503f;
+  --ink-muted:     #6B6555;
+  --ink-invert:    #FBF9F5;
+  --accent:        #9C5A3C;
+  --accent-hover:  #834A30;
+  --accent-soft:   #EDE0D6;
+  --focus:         #2F6FB0;
+  --error:         #A32A22;
+  --success:       #3A6B47;
+  --fs-xs:  0.75rem;
+  --fs-sm:  0.875rem;
+  --fs-base:1rem;
+  --fs-lg:  1.25rem;
+  --fs-xl:  1.563rem;
+  --fs-2xl: 1.953rem;
+  --fs-3xl: 2.441rem;
+  --fs-4xl: 3.052rem;
+  --lh-tight: 1.15;
+  --lh-body:  1.6;
+  --ff-sans: -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --ff-serif: "Iowan Old Style",Georgia,"Nanum Myeongjo",serif;
+  --fw-reg:400; --fw-med:500; --fw-semi:600;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+  --sp-6:32px; --sp-7:48px; --sp-8:64px; --sp-9:96px;
+  --r-sm:6px; --r-md:10px; --r-lg:16px; --r-pill:999px;
+  --shadow-1:0 1px 2px rgba(35,32,27,.05);
+  --shadow-2:0 6px 20px rgba(35,32,27,.08);
+  --container:1120px;
+  --gutter:var(--sp-5);
+  --tap:44px;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font:var(--fw-reg) var(--fs-base)/var(--lh-body) var(--ff-sans);}
+img{max-width:100%;height:auto;display:block;}
+a{color:var(--accent);text-decoration:underline;}
+a:hover{color:var(--accent-hover);}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+.wrap{max-width:var(--container);margin-inline:auto;padding-inline:var(--gutter);}
+button,select,a,input{cursor:pointer;}
+
+/* header */
+header.site{border-bottom:1px solid var(--border);background:var(--bg);}
+.site-header-inner{display:flex;align-items:center;justify-content:space-between;padding-block:var(--sp-4);gap:var(--sp-4);}
+.logo{font-weight:var(--fw-semi);font-size:var(--fs-lg);color:var(--ink);text-decoration:none;letter-spacing:.02em;}
+nav.site-nav{display:flex;gap:var(--sp-5);}
+nav.site-nav a{color:var(--ink-soft);text-decoration:none;font-size:var(--fs-sm);font-weight:var(--fw-med);padding:var(--sp-2) 0;min-height:var(--tap);display:inline-flex;align-items:center;}
+nav.site-nav a[aria-current="page"]{color:var(--ink);border-bottom:2px solid var(--accent);}
+nav.site-nav a:hover{color:var(--ink);}
+.header-cta{display:inline-flex;align-items:center;min-height:var(--tap);padding:0 var(--sp-4);background:var(--accent);color:var(--ink-invert);border-radius:var(--r-md);text-decoration:none;font-size:var(--fs-sm);font-weight:var(--fw-med);}
+.header-cta:hover{background:var(--accent-hover);color:var(--ink-invert);}
+
+/* page header */
+.page-header{padding-block:var(--sp-7);}
+.page-header-row{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--sp-5);flex-wrap:wrap;}
+.page-header h1{font-size:var(--fs-2xl);line-height:var(--lh-tight);color:var(--ink);margin:0 0 var(--sp-2);font-weight:var(--fw-semi);}
+.page-header .sub{color:var(--ink-soft);font-size:var(--fs-base);margin:0;}
+.sort-field{display:flex;flex-direction:column;gap:var(--sp-1);}
+.sort-field label{font-size:var(--fs-sm);color:var(--ink-soft);font-weight:var(--fw-med);}
+.sort-field select{min-height:44px;border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--ink);font-size:var(--fs-base);padding:0 var(--sp-3);cursor:pointer;}
+
+/* filter bar */
+.filter-bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border);padding-block:var(--sp-3);}
+.filter-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+.filter-scroll::-webkit-scrollbar{height:6px;}
+.filter-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-pill);}
+.chip-row{display:flex;gap:var(--sp-2);width:max-content;padding-inline:var(--gutter);margin-inline:auto;max-width:calc(var(--container));}
+@media (min-width:1170px){.chip-row{padding-inline:0;margin-inline:auto;width:max-content;max-width:none;}}
+.chip{min-height:44px;border-radius:var(--r-pill);padding:8px 16px;font-size:var(--fs-sm);font-weight:var(--fw-med);white-space:nowrap;cursor:pointer;background:var(--surface);border:1px solid var(--border);color:var(--ink-soft);font-family:inherit;}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border:1px solid var(--border-strong);color:var(--ink);}
+
+/* product grid */
+.products-section{padding-block:var(--sp-7);}
+.product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5);}
+@media (max-width:1024px){.product-grid{grid-template-columns:repeat(3,1fr);}}
+@media (max-width:768px){.product-grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:640px){.product-grid{grid-template-columns:1fr;}}
+
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden;transition:box-shadow .15s ease;}
+.card:hover{box-shadow:var(--shadow-2);}
+.card-link{position:absolute;inset:0;z-index:1;}
+.card-link:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:var(--r-lg);}
+.card-media{aspect-ratio:1/1;background:var(--bg-sunk);display:flex;align-items:center;justify-content:center;position:relative;}
+.card-media svg{width:40%;height:40%;color:var(--border-strong);}
+.card-body{padding:var(--sp-4);}
+.card-cat{font-size:var(--fs-xs);color:var(--ink-soft);margin:0 0 var(--sp-1);text-transform:uppercase;letter-spacing:.04em;}
+.card-name{font-size:var(--fs-base);font-weight:var(--fw-med);color:var(--ink);margin:0 0 var(--sp-1);}
+.card-price{font-size:var(--fs-base);font-weight:var(--fw-semi);color:var(--ink);margin:0;}
+.fav-btn{position:absolute;top:var(--sp-2);right:var(--sp-2);z-index:2;width:44px;height:44px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.fav-btn svg{width:20px;height:20px;color:var(--ink-soft);}
+.fav-btn:hover{background:var(--bg-sunk);}
+
+/* pagination */
+.pagination-section{padding-block:var(--sp-7);}
+.pagination{display:flex;justify-content:center;align-items:center;gap:var(--sp-2);list-style:none;margin:0;padding:0;flex-wrap:wrap;}
+.pagination a{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-md);border:1px solid var(--border);color:var(--ink);text-decoration:none;font-size:var(--fs-sm);font-weight:var(--fw-med);padding:0 var(--sp-3);cursor:pointer;}
+.pagination a:hover{background:var(--bg-sunk);}
+.pagination a[aria-current="page"]{background:var(--accent);color:var(--ink-invert);border-color:var(--accent);}
+.pagination a[aria-disabled="true"]{color:var(--ink-muted);border-color:var(--border);pointer-events:none;}
+
+/* footer */
+footer.site-footer{border-top:1px solid var(--border);padding-block:var(--sp-7);background:var(--bg-sunk);}
+.footer-inner{display:flex;flex-direction:column;align-items:center;gap:var(--sp-4);text-align:center;}
+.footer-tagline{font-size:var(--fs-base);color:var(--ink);font-weight:var(--fw-med);margin:0;}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--sp-4);}
+.footer-links a{color:var(--ink-soft);font-size:var(--fs-sm);text-decoration:underline;}
+.footer-links a:hover{color:var(--ink);}
+.footer-copy{font-size:var(--fs-xs);color:var(--ink-soft);margin:0;}
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap site-header-inner">
+    <a href="landing.html" class="logo">무명</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="landing.html">홈</a>
+      <a href="products.html" aria-current="page">제품</a>
+      <a href="signup.html">가입</a>
+    </nav>
+    <a href="signup.html" class="header-cta">가입하기</a>
+  </div>
+</header>
+
+<section class="page-header">
+  <div class="wrap page-header-row">
+    <div>
+      <h1>전체 제품</h1>
+      <p class="sub">48개 물건</p>
+    </div>
+    <div class="sort-field">
+      <label for="sort-select">정렬</label>
+      <select id="sort-select">
+        <option>신상품순</option>
+        <option>가격낮은순</option>
+        <option>가격높은순</option>
+      </select>
+    </div>
+  </div>
+</section>
+
+<div class="filter-bar">
+  <div class="filter-scroll">
+    <div class="chip-row" id="chip-row">
+      <button type="button" class="chip" aria-pressed="true">전체</button>
+      <button type="button" class="chip" aria-pressed="false">의류</button>
+      <button type="button" class="chip" aria-pressed="false">리빙</button>
+      <button type="button" class="chip" aria-pressed="false">주방</button>
+      <button type="button" class="chip" aria-pressed="false">패브릭</button>
+      <button type="button" class="chip" aria-pressed="false">소품</button>
+    </div>
+  </div>
+</div>
+
+<section class="products-section">
+  <div class="wrap product-grid">
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="무명 리넨 셔츠 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">의류</p>
+        <p class="card-name">무명 리넨 셔츠</p>
+        <p class="card-price">89,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="워시드 코튼 팬츠 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">의류</p>
+        <p class="card-name">워시드 코튼 팬츠</p>
+        <p class="card-price">72,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="원목 트레이 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">리빙</p>
+        <p class="card-name">원목 트레이</p>
+        <p class="card-price">42,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="세라믹 머그 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">주방</p>
+        <p class="card-name">세라믹 머그</p>
+        <p class="card-price">28,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="유리 저그 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">주방</p>
+        <p class="card-name">유리 저그</p>
+        <p class="card-price">38,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="코튼 블랭킷 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">패브릭</p>
+        <p class="card-name">코튼 블랭킷</p>
+        <p class="card-price">76,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="리넨 쿠션 커버 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">패브릭</p>
+        <p class="card-name">리넨 쿠션 커버</p>
+        <p class="card-price">34,000원</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <a class="card-link" href="#" aria-label="황동 북엔드 상세보기"></a>
+      <button type="button" class="fav-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.1 2 4.5 5.5 4c2-.3 3.7.7 4.5 2.2C10.8 4.7 12.5 3.7 14.5 4c3.5.5 4.9 4.1 3.5 7.7C19.5 16.3 12 21 12 21z"/></svg></button>
+      <div class="card-media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 15l4-4 4 4 4-6 4 5"/></svg></div>
+      <div class="card-body">
+        <p class="card-cat">소품</p>
+        <p class="card-name">황동 북엔드</p>
+        <p class="card-price">54,000원</p>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<section class="pagination-section">
+  <div class="wrap">
+    <nav aria-label="페이지 네비게이션">
+      <ul class="pagination">
+        <li><a href="#" aria-disabled="true">이전</a></li>
+        <li><a href="#" aria-current="page">1</a></li>
+        <li><a href="#">2</a></li>
+        <li><a href="#">3</a></li>
+        <li><a href="#">다음</a></li>
+      </ul>
+    </nav>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <p class="footer-tagline">무명 — 이름 없이, 쓰임으로 남는 것들.</p>
+    <nav class="footer-links" aria-label="푸터 메뉴">
+      <a href="#">브랜드 소개</a>
+      <a href="#">배송 안내</a>
+      <a href="#">교환과 반품</a>
+      <a href="#">문의하기</a>
+    </nav>
+    <p class="footer-copy">© MUMYUNG. All rights reserved.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var row = document.getElementById('chip-row');
+  if(!row) return;
+  var chips = row.querySelectorAll('.chip');
+  chips.forEach(function(chip){
+    chip.addEventListener('click', function(){
+      chips.forEach(function(c){ c.setAttribute('aria-pressed','false'); });
+      chip.setAttribute('aria-pressed','true');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

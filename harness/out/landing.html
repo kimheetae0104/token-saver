@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>무명 MUMYUNG</title>
+  <style>
+    /* ===== DESIGN TOKENS ===== */
+    :root {
+      /* PALETTE */
+      --bg: #F7F4EF;
+      --bg-sunk: #EFEAE2;
+      --surface: #FFFFFF;
+      --border: #DED7CC;
+      --border-strong: #C4BAAB;
+
+      /* TEXT */
+      --ink: #23201B;
+      --ink-soft: #55503f;
+      --ink-muted: #6B6555;
+      --ink-invert: #FBF9F5;
+
+      /* ACCENT */
+      --accent: #9C5A3C;
+      --accent-hover: #834A30;
+      --accent-soft: #EDE0D6;
+      --focus: #2F6FB0;
+
+      /* STATUS */
+      --error: #A32A22;
+      --success: #3A6B47;
+
+      /* TYPE SCALE */
+      --fs-xs: 0.75rem;
+      --fs-sm: 0.875rem;
+      --fs-base: 1rem;
+      --fs-lg: 1.25rem;
+      --fs-xl: 1.563rem;
+      --fs-2xl: 1.953rem;
+      --fs-3xl: 2.441rem;
+      --fs-4xl: 3.052rem;
+      --lh-tight: 1.15;
+      --lh-body: 1.6;
+      --ff-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      --fw-reg: 400;
+      --fw-med: 500;
+      --fw-semi: 600;
+
+      /* SPACING */
+      --sp-1: 4px;
+      --sp-2: 8px;
+      --sp-3: 12px;
+      --sp-4: 16px;
+      --sp-5: 24px;
+      --sp-6: 32px;
+      --sp-7: 48px;
+      --sp-8: 64px;
+      --sp-9: 96px;
+
+      /* RADIUS */
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 16px;
+      --r-pill: 999px;
+
+      /* ELEVATION */
+      --shadow-1: 0 1px 2px rgba(35, 32, 27, 0.05);
+      --shadow-2: 0 6px 20px rgba(35, 32, 27, 0.08);
+
+      /* LAYOUT */
+      --container: 1120px;
+      --gutter: var(--sp-5);
+      --tap: 44px;
+    }
+
+    /* ===== GLOBAL ===== */
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font: var(--fw-reg) var(--fs-base) / var(--lh-body) var(--ff-sans);
+      margin: 0;
+      padding: 0;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    a:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      position: sticky;
+      top: 0;
+      background: rgba(247, 244, 239, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+
+    .header-content {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 var(--gutter);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: var(--tap);
+    }
+
+    .logo {
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .nav-wrapper {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-5);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--sp-5);
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      min-height: var(--tap);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: var(--fs-base);
+      cursor: pointer;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--ink-invert);
+      padding: 12px 20px;
+      border-radius: var(--r-md);
+      font-weight: var(--fw-semi);
+      font-size: var(--fs-base);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--tap);
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    @media (max-width: 640px) {
+      .nav-links {
+        display: none;
+      }
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      padding: var(--sp-9) var(--gutter);
+    }
+
+    @media (max-width: 640px) {
+      .hero {
+        padding: var(--sp-7) var(--gutter);
+      }
+    }
+
+    .hero-content {
+      max-width: var(--container);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sp-8);
+      align-items: center;
+    }
+
+    @media (max-width: 640px) {
+      .hero-content {
+        grid-template-columns: 1fr;
+        gap: var(--sp-5);
+      }
+    }
+
+    .hero-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+    }
+
+    .hero-eyebrow {
+      font-size: var(--fs-sm);
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: var(--fw-semi);
+    }
+
+    .hero-h1 {
+      font-size: var(--fs-4xl);
+      line-height: var(--lh-tight);
+      color: var(--ink);
+      margin: 0;
+      font-weight: var(--fw-semi);
+    }
+
+    @media (max-width: 640px) {
+      .hero-h1 {
+        font-size: var(--fs-3xl);
+      }
+    }
+
+    .hero-subtitle {
+      font-size: var(--fs-lg);
+      color: var(--ink-soft);
+      line-height: var(--lh-body);
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: var(--sp-4);
+      margin-top: var(--sp-4);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--border-strong);
+      padding: 12px 20px;
+      border-radius: var(--r-md);
+      font-weight: var(--fw-semi);
+      font-size: var(--fs-base);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--tap);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .hero-image {
+      aspect-ratio: 4 / 5;
+      background: linear-gradient(135deg, var(--bg-sunk) 0%, var(--surface) 100%);
+      border-radius: var(--r-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-muted);
+      font-size: var(--fs-2xl);
+      font-weight: var(--fw-semi);
+    }
+
+    /* ===== FEATURES ===== */
+    .features {
+      padding: var(--sp-9) var(--gutter);
+      background: var(--surface);
+    }
+
+    @media (max-width: 640px) {
+      .features {
+        padding: var(--sp-7) var(--gutter);
+      }
+    }
+
+    .section-title {
+      font-size: var(--fs-2xl);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      text-align: center;
+      margin: 0 auto var(--sp-8);
+      max-width: var(--container);
+    }
+
+    .features-grid {
+      max-width: var(--container);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--sp-5);
+    }
+
+    @media (max-width: 1024px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: var(--sp-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+      box-shadow: var(--shadow-1);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .feature-card:hover {
+      box-shadow: var(--shadow-2);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .feature-card h3 {
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .feature-card p {
+      font-size: var(--fs-base);
+      color: var(--ink-soft);
+      line-height: var(--lh-body);
+      margin: 0;
+    }
+
+    /* ===== PRODUCTS ===== */
+    .products {
+      padding: var(--sp-9) var(--gutter);
+    }
+
+    @media (max-width: 640px) {
+      .products {
+        padding: var(--sp-7) var(--gutter);
+      }
+    }
+
+    .products-header {
+      max-width: var(--container);
+      margin: 0 auto var(--sp-8);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .products-header h2 {
+      font-size: var(--fs-2xl);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .products-header a {
+      font-size: var(--fs-base);
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .products-header a:hover {
+      text-decoration: underline;
+    }
+
+    .products-grid {
+      max-width: var(--container);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--sp-5);
+    }
+
+    @media (max-width: 1024px) {
+      .products-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .products-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .product-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-1);
+      transition: box-shadow 0.2s ease;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      color: inherit;
+    }
+
+    .product-card:hover {
+      box-shadow: var(--shadow-2);
+    }
+
+    .product-image {
+      aspect-ratio: 1 / 1;
+      background: linear-gradient(135deg, var(--bg-sunk) 0%, var(--surface) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-muted);
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-semi);
+    }
+
+    .product-body {
+      padding: var(--sp-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+    }
+
+    .product-category {
+      font-size: var(--fs-xs);
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0;
+    }
+
+    .product-name {
+      font-size: var(--fs-base);
+      font-weight: var(--fw-med);
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .product-price {
+      font-size: var(--fs-base);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      margin: 0;
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: var(--bg-sunk);
+      padding: var(--sp-8) var(--gutter);
+      margin-top: var(--sp-9);
+    }
+
+    @media (max-width: 640px) {
+      footer {
+        padding: var(--sp-7) var(--gutter);
+      }
+    }
+
+    .footer-content {
+      max-width: var(--container);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--sp-8);
+      margin-bottom: var(--sp-8);
+    }
+
+    @media (max-width: 1024px) {
+      .footer-content {
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--sp-6);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .footer-content {
+        grid-template-columns: 1fr;
+        gap: var(--sp-5);
+      }
+    }
+
+    .footer-section h3 {
+      font-size: var(--fs-lg);
+      font-weight: var(--fw-semi);
+      color: var(--ink);
+      margin: 0 0 var(--sp-4) 0;
+    }
+
+    .footer-section p {
+      font-size: var(--fs-base);
+      color: var(--ink-soft);
+      line-height: var(--lh-body);
+      margin: 0 0 var(--sp-4) 0;
+    }
+
+    .footer-links {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+    }
+
+    .footer-links a {
+      font-size: var(--fs-base);
+      color: var(--ink);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      min-height: 24px;
+      cursor: pointer;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .footer-divider {
+      border-top: 1px solid var(--border);
+      padding-top: var(--sp-6);
+      margin-top: var(--sp-6);
+    }
+
+    .footer-bottom {
+      max-width: var(--container);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media (max-width: 640px) {
+      .footer-bottom {
+        flex-direction: column;
+        gap: var(--sp-4);
+        text-align: center;
+      }
+    }
+
+    .footer-copyright {
+      font-size: var(--fs-sm);
+      color: var(--ink-soft);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header>
+    <div class="header-content">
+      <a href="/" class="logo">무명 MUMYUNG</a>
+      <div class="nav-wrapper">
+        <nav>
+          <ul class="nav-links">
+            <li><a href="#brand">브랜드</a></li>
+            <li><a href="products.html">제품</a></li>
+            <li><a href="signup.html">가입</a></li>
+          </ul>
+        </nav>
+        <a href="signup.html" class="btn-primary">가입</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-text">
+        <div class="hero-eyebrow">미니멀 라이프스타일 편집샵</div>
+        <h1 class="hero-h1">덜어낼수록 분명해지는 것들</h1>
+        <p class="hero-subtitle">오래 곁에 두는 물건만 남겼습니다. 무명의 기준으로 고른 일상의 도구.</p>
+        <div class="hero-cta">
+          <a href="products.html" class="btn-primary">제품 보기</a>
+          <button class="btn-secondary">브랜드 이야기</button>
+        </div>
+      </div>
+      <div class="hero-image" aria-label="무명의 대표 상품 이미지">무명</div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <h2 class="section-title">무명이 지키는 것</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/>
+            <path d="M18 24L22 28L30 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>덜어낸 디자인</h3>
+        <p>장식을 빼고 쓰임만 남겼습니다.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 20C12 16.686 14.686 14 18 14C21.314 14 24 16.686 24 20M24 20V34C24 37.314 21.314 40 18 40C14.686 40 12 37.314 12 34V20M24 20V34C24 37.314 26.686 40 30 40C33.314 40 36 37.314 36 34V20C36 16.686 33.314 14 30 14C26.686 14 24 16.686 24 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>오래 가는 소재</h3>
+        <p>시간이 지나야 좋아지는 것들을 고릅니다.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" stroke-width="2"/>
+            <path d="M16 18H32M16 26H32M16 34H24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>조용한 배송</h3>
+        <p>과한 포장 없이, 필요한 만큼만 담아 보냅니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRODUCTS -->
+  <section class="products">
+    <div class="products-header">
+      <h2>이달의 물건</h2>
+      <a href="products.html">전체 보기 →</a>
+    </div>
+    <div class="products-grid">
+      <a href="products.html" class="product-card">
+        <div class="product-image">린넨</div>
+        <div class="product-body">
+          <p class="product-category">의류</p>
+          <p class="product-name">무명 리넨 셔츠</p>
+          <p class="product-price">₩ 89,000</p>
+        </div>
+      </a>
+      <a href="products.html" class="product-card">
+        <div class="product-image">목재</div>
+        <div class="product-body">
+          <p class="product-category">리빙</p>
+          <p class="product-name">원목 트레이</p>
+          <p class="product-price">₩ 42,000</p>
+        </div>
+      </a>
+      <a href="products.html" class="product-card">
+        <div class="product-image">도자</div>
+        <div class="product-body">
+          <p class="product-category">주방</p>
+          <p class="product-name">세라믹 머그</p>
+          <p class="product-price">₩ 28,000</p>
+        </div>
+      </a>
+      <a href="products.html" class="product-card">
+        <div class="product-image">패브릭</div>
+        <div class="product-body">
+          <p class="product-category">패브릭</p>
+          <p class="product-name">코튼 블랭킷</p>
+          <p class="product-price">₩ 76,000</p>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>무명</h3>
+        <p>이름 없이, 쓰임으로 남는 것들.</p>
+      </div>
+      <div class="footer-section">
+        <h3>쇼핑</h3>
+        <ul class="footer-links">
+          <li><a href="products.html">모든 상품</a></li>
+          <li><a href="#new">신상품</a></li>
+          <li><a href="#sale">세일</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h3>고객지원</h3>
+        <ul class="footer-links">
+          <li><a href="#shipping">배송 안내</a></li>
+          <li><a href="#exchange">교환과 반품</a></li>
+          <li><a href="#contact">문의하기</a></li>
+        </ul>
+      </div>
+      <div class="footer-section">
+        <h3>뉴스레터</h3>
+        <p>신제품과 소식을 가장 먼저 받아보세요.</p>
+        <input type="email" placeholder="이메일 주소" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md); font-family: inherit; background: var(--surface);">
+      </div>
+    </div>
+    <div class="footer-divider">
+      <div class="footer-bottom">
+        <p class="footer-copyright">© 2026 무명 MUMYUNG. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

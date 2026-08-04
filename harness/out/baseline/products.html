@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>제품 — 무명</title>
+<style>
+:root{
+  --bg:#F7F4EF;--bg-sunk:#EFEAE2;--surface:#FFFFFF;--border:#DED7CC;--border-strong:#C4BAAB;
+  --ink:#23201B;--ink-soft:#55503f;--ink-muted:#6B6555;--ink-invert:#FBF9F5;
+  --accent:#9C5A3C;--accent-hover:#834A30;--accent-soft:#EDE0D6;--focus:#2F6FB0;
+  --error:#A32A22;--success:#3A6B47;
+  --fs-xs:0.75rem;--fs-sm:0.875rem;--fs-base:1rem;--fs-lg:1.25rem;--fs-xl:1.563rem;
+  --fs-2xl:1.953rem;--fs-3xl:2.441rem;--fs-4xl:3.052rem;--lh-tight:1.15;--lh-body:1.6;
+  --ff-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --ff-serif:"Iowan Old Style",Georgia,"Nanum Myeongjo",serif;
+  --fw-reg:400;--fw-med:500;--fw-semi:600;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-7:48px;--sp-8:64px;--sp-9:96px;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;--r-pill:999px;
+  --shadow-1:0 1px 2px rgba(35,32,27,.05);--shadow-2:0 6px 20px rgba(35,32,27,.08);
+  --container:1120px;--gutter:var(--sp-5);--tap:44px;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html,body{margin:0;padding:0;overflow-x:hidden;}
+body{background:var(--bg);color:var(--ink);font:var(--fw-reg) var(--fs-base)/var(--lh-body) var(--ff-sans);-webkit-font-smoothing:antialiased;}
+img{max-width:100%;height:auto;display:block;}
+a{color:var(--accent);text-decoration:none;}
+a:hover{color:var(--accent-hover);}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm);}
+.container{max-width:var(--container);margin-inline:auto;padding-inline:var(--gutter);}
+
+/* HEADER */
+.site-header{position:sticky;top:0;z-index:50;background:rgba(247,244,239,.85);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--border);}
+.header-inner{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);min-height:64px;}
+.wordmark{font-size:var(--fs-lg);font-weight:var(--fw-semi);color:var(--ink);white-space:nowrap;display:inline-flex;align-items:center;min-height:var(--tap);cursor:pointer;}
+.nav{display:flex;align-items:center;gap:var(--sp-2);}
+.nav a.nav-link{display:inline-flex;align-items:center;min-height:var(--tap);padding:0 var(--sp-3);color:var(--ink-soft);font-weight:var(--fw-med);cursor:pointer;border-radius:var(--r-sm);}
+.nav a.nav-link:hover,.nav a.nav-link[aria-current="page"]{color:var(--ink);}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap);padding:12px 20px;border-radius:var(--r-md);font-weight:var(--fw-semi);cursor:pointer;border:1px solid transparent;font-size:var(--fs-base);line-height:1;transition:background .18s ease,box-shadow .18s ease;}
+.btn-primary{background:var(--accent);color:var(--ink-invert);}
+.btn-primary:hover{background:var(--accent-hover);color:var(--ink-invert);}
+
+/* PAGE HEADER */
+.page-head{padding-block:var(--sp-7);}
+.page-head-inner{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--sp-5);flex-wrap:wrap;}
+.page-head h1{font-size:var(--fs-2xl);color:var(--ink);margin:0 0 var(--sp-2);font-weight:var(--fw-semi);letter-spacing:-.01em;}
+.page-head .count{color:var(--ink-soft);margin:0;}
+.sort-group{display:flex;align-items:center;gap:var(--sp-2);}
+.sort-group label{font-size:var(--fs-sm);color:var(--ink-soft);font-weight:var(--fw-med);}
+.sort-group select{min-height:var(--tap);padding:0 var(--sp-4);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--ink);font-size:var(--fs-base);cursor:pointer;font-family:inherit;}
+
+/* FILTER CHIP BAR */
+.filter-bar{position:sticky;top:64px;z-index:40;background:var(--bg);border-bottom:1px solid var(--border);}
+.filter-scroll{display:flex;gap:var(--sp-2);overflow-x:auto;-webkit-overflow-scrolling:touch;padding-block:var(--sp-3);scrollbar-width:thin;}
+.filter-scroll::-webkit-scrollbar{height:6px;}
+.filter-scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-pill);}
+.chip{flex:0 0 auto;min-height:var(--tap);padding:8px 16px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);font-size:var(--fs-base);font-weight:var(--fw-med);cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .15s ease,border-color .15s ease,color .15s ease;}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border:1px solid var(--border-strong);color:var(--ink);}
+
+/* PRODUCT GRID */
+.products-section{padding-block:var(--sp-7);}
+.product-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5);}
+.product-card{position:relative;display:block;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-1);cursor:pointer;transition:box-shadow .2s ease,transform .2s ease;color:inherit;}
+.product-card:hover{box-shadow:var(--shadow-2);transform:translateY(-2px);color:inherit;}
+.product-thumb{aspect-ratio:1/1;background:var(--bg-sunk);display:flex;align-items:center;justify-content:center;position:relative;}
+.product-thumb .initial{font-size:var(--fs-2xl);font-weight:var(--fw-semi);color:var(--border-strong);font-family:var(--ff-serif);}
+.wish-btn{position:absolute;top:var(--sp-2);right:var(--sp-2);width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:none;background:rgba(255,255,255,.82);border-radius:var(--r-pill);cursor:pointer;color:var(--ink-soft);box-shadow:var(--shadow-1);z-index:2;}
+.wish-btn:hover{color:var(--accent);}
+.wish-btn svg{width:20px;height:20px;}
+.product-body{padding:var(--sp-4);}
+.product-cat{font-size:var(--fs-xs);color:var(--ink-soft);margin:0 0 var(--sp-1);letter-spacing:.02em;}
+.product-name{font-size:var(--fs-base);font-weight:var(--fw-med);color:var(--ink);margin:0 0 var(--sp-2);}
+.product-price{font-size:var(--fs-base);font-weight:var(--fw-semi);color:var(--ink);margin:0;}
+
+/* PAGINATION */
+.pagination{padding-block:var(--sp-7);display:flex;justify-content:center;align-items:center;gap:var(--sp-2);}
+.pagination a{min-width:44px;height:44px;padding:0 var(--sp-3);display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r-md);color:var(--ink);cursor:pointer;font-weight:var(--fw-med);background:var(--surface);}
+.pagination a:hover{border-color:var(--border-strong);color:var(--ink);}
+.pagination a[aria-current="page"]{background:var(--accent);color:var(--ink-invert);border-color:var(--accent);}
+.pagination a[aria-disabled="true"]{color:var(--ink-muted);border-color:var(--border);pointer-events:none;background:transparent;}
+
+/* FOOTER */
+.site-footer{background:var(--bg-sunk);padding-block:var(--sp-8);border-top:1px solid var(--border);}
+.footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.3fr;gap:var(--sp-7);}
+.footer-brand p{color:var(--ink-soft);margin:var(--sp-3) 0 0;max-width:28ch;}
+.footer-col h4{font-size:var(--fs-sm);font-weight:var(--fw-semi);color:var(--ink);margin:0 0 var(--sp-2);letter-spacing:.02em;}
+.footer-col ul{list-style:none;margin:0;padding:0;}
+.footer-col a{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--ink-soft);cursor:pointer;}
+.footer-col a:hover{color:var(--ink);}
+.newsletter-form{display:flex;gap:var(--sp-2);margin-top:var(--sp-2);flex-wrap:wrap;}
+.newsletter-form input{flex:1 1 140px;min-height:var(--tap);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--ink);font-size:var(--fs-base);}
+.newsletter-form input::placeholder{color:var(--ink-muted);}
+.copyright{margin-top:var(--sp-7);padding-top:var(--sp-5);border-top:1px solid var(--border);color:var(--ink-soft);font-size:var(--fs-sm);}
+.footer-word{font-weight:var(--fw-semi);color:var(--ink);font-size:var(--fs-lg);}
+
+@media (max-width:1024px){
+  .product-grid{grid-template-columns:repeat(3,1fr);}
+  .footer-grid{grid-template-columns:1fr 1fr;gap:var(--sp-6);}
+}
+@media (max-width:768px){
+  .product-grid{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:640px){
+  .products-section,.page-head{padding-block:var(--sp-6);}
+  .product-grid{grid-template-columns:1fr;}
+  .footer-grid{grid-template-columns:1fr;gap:var(--sp-6);}
+  .nav .nav-link{display:none;}
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="landing.html" class="wordmark">무명 MUMYUNG</a>
+    <nav class="nav" aria-label="주요 메뉴">
+      <a href="landing.html" class="nav-link">브랜드</a>
+      <a href="products.html" class="nav-link" aria-current="page">제품</a>
+      <a href="signup.html" class="nav-link">가입</a>
+      <a href="signup.html" class="btn btn-primary">가입</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- PAGE HEADER -->
+  <section class="page-head">
+    <div class="container page-head-inner">
+      <div>
+        <h1>전체 제품</h1>
+        <p class="count">48개 물건</p>
+      </div>
+      <div class="sort-group">
+        <label for="sort">정렬</label>
+        <select id="sort" name="sort">
+          <option value="new">신상품순</option>
+          <option value="low">가격낮은순</option>
+          <option value="high">가격높은순</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILTER CHIP BAR -->
+  <div class="filter-bar">
+    <div class="container">
+      <div class="filter-scroll" role="group" aria-label="카테고리 필터">
+        <button type="button" class="chip" aria-pressed="true">전체</button>
+        <button type="button" class="chip" aria-pressed="false">주방</button>
+        <button type="button" class="chip" aria-pressed="false">테이블웨어</button>
+        <button type="button" class="chip" aria-pressed="false">패브릭</button>
+        <button type="button" class="chip" aria-pressed="false">문구</button>
+        <button type="button" class="chip" aria-pressed="false">수납</button>
+        <button type="button" class="chip" aria-pressed="false">데스크</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUCT GRID -->
+  <section class="products-section">
+    <div class="container">
+      <div class="product-grid">
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">L</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">의류</p><p class="product-name">무명 리넨 셔츠</p><p class="product-price">89,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">W</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">의류</p><p class="product-name">워시드 코튼 팬츠</p><p class="product-price">72,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">T</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">리빙</p><p class="product-name">원목 트레이</p><p class="product-price">42,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">M</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">주방</p><p class="product-name">세라믹 머그</p><p class="product-price">28,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">J</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">주방</p><p class="product-name">유리 저그</p><p class="product-price">38,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">B</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">패브릭</p><p class="product-name">코튼 블랭킷</p><p class="product-price">76,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">C</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">패브릭</p><p class="product-name">리넨 쿠션 커버</p><p class="product-price">34,000원</p></div>
+        </a>
+        <a href="#" class="product-card">
+          <div class="product-thumb"><span class="initial" aria-hidden="true">K</span><button type="button" class="wish-btn" aria-label="찜하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.5-9A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 9.5 5c-2.5 4.5-9.5 9-9.5 9z"/></svg></button></div>
+          <div class="product-body"><p class="product-cat">소품</p><p class="product-name">황동 북엔드</p><p class="product-price">54,000원</p></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAGINATION -->
+  <nav class="pagination" aria-label="페이지 탐색">
+    <a href="#" aria-disabled="true" aria-label="이전 페이지">이전</a>
+    <a href="#" aria-current="page">1</a>
+    <a href="#">2</a>
+    <a href="#">3</a>
+    <a href="#" aria-label="다음 페이지">다음</a>
+  </nav>
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <span class="footer-word">무명 MUMYUNG</span>
+        <p>무명 — 이름 없이, 쓰임으로 남는 것들.</p>
+      </div>
+      <div class="footer-col">
+        <h4>쇼핑</h4>
+        <ul>
+          <li><a href="products.html">전체 제품</a></li>
+          <li><a href="products.html">이달의 물건</a></li>
+          <li><a href="#">브랜드 소개</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>고객지원</h4>
+        <ul>
+          <li><a href="#">배송 안내</a></li>
+          <li><a href="#">교환과 반품</a></li>
+          <li><a href="#">문의하기</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>뉴스레터</h4>
+        <form class="newsletter-form" onsubmit="return false">
+          <label for="nl-email" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">이메일</label>
+          <input id="nl-email" type="email" placeholder="name@example.com" autocomplete="email">
+          <button type="submit" class="btn btn-primary">구독</button>
+        </form>
+      </div>
+    </div>
+    <div class="copyright">© 2026 무명 MUMYUNG · © MUMYUNG. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var chips=document.querySelectorAll('.filter-scroll .chip');
+  chips.forEach(function(c){
+    c.addEventListener('click',function(){
+      chips.forEach(function(x){x.setAttribute('aria-pressed','false');});
+      c.setAttribute('aria-pressed','true');
+    });
+  });
+})();
+</script>
+</body>
+</html>

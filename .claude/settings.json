@@ -1,0 +1,25 @@
+{
+  "_comment": "토큰 세이버 툴킷 — 이 프로젝트에서 Claude Code 실행 시 statusline·hook 활성화. 경로는 $CLAUDE_PROJECT_DIR 기준.",
+  "statusLine": {
+    "type": "command",
+    "command": "python3 \"$CLAUDE_PROJECT_DIR/measure.py\" --statusline"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/measure.py\" --check" },
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/intent_gate.py\"" },
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/habit_coaching.py\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/hooks/session_autopsy.sh\"" }
+        ]
+      }
+    ]
+  }
+}

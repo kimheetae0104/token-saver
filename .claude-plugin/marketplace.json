@@ -1,0 +1,16 @@
+{
+  "name": "token-saver-tools",
+  "description": "Model-tier routing ladder + waste-detection coaching hooks for Claude Code, measured savings only. Early stage (v0.x, N=6 sessions).",
+  "owner": {
+    "name": "kimheetae0104",
+    "url": "https://github.com/kimheetae0104"
+  },
+  "plugins": [
+    {
+      "name": "token-saver",
+      "source": "./",
+      "description": "Model-tier routing ladder + waste-detection coaching hooks for Claude Code. Measured savings only, no vendor claims. v0.x, N=6 sessions.",
+      "version": "0.1.0"
+    }
+  ]
+}
