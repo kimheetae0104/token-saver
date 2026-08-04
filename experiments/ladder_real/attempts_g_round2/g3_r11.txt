@@ -1,0 +1,30 @@
+이 코드에는 **심각한 SQL Injection 취약점**이 있습니다.
+
+## 주요 문제점:
+
+1. **SQL Injection 공격에 노출됨**
+   - `username` 매개변수를 문자열 연결로 직접 SQL 쿼리에 넣고 있습니다
+   - 공격자가 `username`에 `' OR '1'='1` 같은 코드를 입력하면, 쿼리가 `SELECT * FROM users WHERE name = '' OR '1'='1'`로 변조되어 모든 사용자 정보가 노출됩니다
+
+2. **특수 문자 처리 미흡**
+   - `username`에 따옴표(')가 포함되면 SQL 문법 오류가 발생합니다
+
+## 해결 방법:
+
+**매개변수화된 쿼리(Parameterized Query)를 사용해야 합니다:**
+
+```python
+def get_user(username):
+    query = "SELECT * FROM users WHERE name = ?"
+    return db.execute(query, (username,))
+```
+
+또는:
+
+```python
+def get_user(username):
+    query = "SELECT * FROM users WHERE name = %s"
+    return db.execute(query, [username])
+```
+
+이렇게 하면 데이터베이스 드라이버가 사용자 입력을 자동으로 안전하게 이스케이프 처리하여 SQL Injection 공격을 방어할 수 있습니다.

@@ -1,0 +1,35 @@
+이 코드에는 심각한 문제점들이 있습니다:
+
+## 1. **SQL Injection 취약점** (가장 심각)
+문자열 연결로 쿼리를 만들어서 입력값이 직접 SQL에 포함됩니다. 사용자가 `' OR '1'='1` 같은 값을 입력하면 쿼리가 조작되어 모든 사용자 정보를 유출할 수 있습니다.
+
+## 2. **Parameterized Query 미사용**
+안전한 방식으로 변경해야 합니다:
+```python
+query = "SELECT * FROM users WHERE name = ?"
+return db.execute(query, [username])
+```
+
+또는 ORM(SQLAlchemy 등)을 사용하면 더 좋습니다.
+
+## 3. **에러 처리 부재**
+데이터베이스 오류가 발생해도 대응하는 코드가 없습니다.
+
+## 4. **SELECT * 사용**
+필요한 컬럼만 명시하는 것이 성능과 보안 측면에서 더 낫습니다:
+```python
+query = "SELECT id, username, email FROM users WHERE name = ?"
+```
+
+## 개선된 코드 예시:
+```python
+def get_user(username):
+    try:
+        query = "SELECT id, username, email FROM users WHERE name = ?"
+        return db.execute(query, [username])
+    except DatabaseError as e:
+        # 에러 처리
+        return None
+```
+
+가장 중요한 것은 **SQL Injection 방지**입니다.

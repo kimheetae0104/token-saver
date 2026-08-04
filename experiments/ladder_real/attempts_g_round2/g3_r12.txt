@@ -1,0 +1,28 @@
+이 코드의 주요 문제점은 **SQL Injection 취약점**입니다.
+
+사용자 입력(`username`)이 직접 SQL 쿼리 문자열에 연결되어 있기 때문에, 악의적인 입력으로 쿼리를 변조할 수 있습니다.
+
+**예시:**
+username이 `' OR '1'='1`이면 쿼리는 다음과 같이 변조됩니다:
+```sql
+SELECT * FROM users WHERE name = '' OR '1'='1'
+```
+이렇게 되면 WHERE 절이 항상 참이 되어 모든 사용자 정보가 유출됩니다.
+
+**해결 방법:**
+파라미터화된 쿼리(Parameterized Query)를 사용하세요:
+
+```python
+def get_user(username):
+    query = "SELECT * FROM users WHERE name = ?"
+    return db.execute(query, (username,))
+```
+
+또는 ORM 라이브러리(SQLAlchemy 등)를 사용하면 자동으로 보안이 처리됩니다:
+
+```python
+def get_user(username):
+    return db.query(User).filter(User.name == username).all()
+```
+
+파라미터화된 쿼리는 SQL 엔진이 사용자 입력을 단순 데이터로 취급하므로 쿼리 구조를 변조할 수 없게 만듭니다.

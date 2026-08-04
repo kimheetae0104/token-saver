@@ -1,0 +1,31 @@
+이 코드의 주요 문제점들을 지적하겠습니다:
+
+## 1. **SQL Injection 취약점 (가장 심각)**
+username 값이 직접 문자열 연결로 쿼리에 포함되고 있습니다. 공격자가 `' OR '1'='1` 같은 입력값을 제공하면 의도하지 않은 SQL 명령이 실행될 수 있습니다.
+
+**해결책:** 파라미터화된 쿼리(prepared statement)를 사용해야 합니다:
+```python
+query = "SELECT * FROM users WHERE name = %s"
+return db.execute(query, (username,))
+```
+
+## 2. **에러 처리 부재**
+데이터베이스 연결 실패, 쿼리 오류 등에 대한 예외 처리가 없습니다. 오류 발생 시 프로그램이 비정상 종료될 수 있습니다.
+
+## 3. **비효율적인 쿼리**
+`SELECT *`로 모든 컬럼을 가져오는 것은 불필요한 데이터 전송을 야기합니다. 필요한 컬럼만 명시하는 것이 성능상 낫습니다.
+
+## 4. **반환값 검증 부재**
+쿼리 결과가 데이터를 포함하는지, 비어있는지 확인하지 않습니다.
+
+**개선된 코드:**
+```python
+def get_user(username):
+    try:
+        query = "SELECT id, name, email FROM users WHERE name = %s"
+        result = db.execute(query, (username,))
+        return result if result else None
+    except DatabaseError as e:
+        # 에러 로깅 및 처리
+        return None
+```
