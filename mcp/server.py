@@ -41,6 +41,19 @@ def tool_check():
             f"탐색 경로={measure.transcript_dir(project_dir)}")
 
 
+def tool_autopsy():
+    project_dir = resolve_project_dir()
+    path = measure.latest_session(project_dir=project_dir)
+    if not path or not os.path.isfile(path):
+        return f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}"
+    parts = [measure.autopsy_text(path)]
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    cap = measure.capture_failures_text(path, data_dir=data_dir)
+    if cap:
+        parts.append(cap)
+    return "\n".join(parts)
+
+
 TOOLS = {
     "token_saver_check": {
         "description": (
@@ -49,6 +62,14 @@ TOOLS = {
             "발화 중) 이 툴을 다시 호출하지 말 것 — Desktop Code 탭처럼 그 줄이 안 보일 때만 호출."
         ),
         "handler": tool_check,
+    },
+    "token_saver_autopsy": {
+        "description": (
+            "이 프로젝트 현재 세션의 낭비 신호 부검(컨텍스트 비대·캐시 스래싱·rework 등)을 "
+            "반환하고 실패 후보를 로그에 기록한다. 대화가 마무리되는 느낌일 때(사용자의 마무리 "
+            "인사·'여기까지'류) 한 번만 호출해 요약을 짧게 보여주고 그 외엔 언급하지 말 것."
+        ),
+        "handler": tool_autopsy,
     },
 }
 

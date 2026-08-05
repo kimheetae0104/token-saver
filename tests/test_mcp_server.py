@@ -53,6 +53,22 @@ def test_unknown_tool_returns_error():
     assert resp[0]["error"]["code"] == -32601
 
 
+def test_autopsy_tool_reports_missing_transcript_diagnostically():
+    resp = _call(
+        [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+          "params": {"name": "token_saver_autopsy", "arguments": {}}}],
+        env_extra={"CLAUDE_PROJECT_DIR": "/nonexistent/token-saver-test-fixture-xyz"},
+    )
+    text = resp[0]["result"]["content"][0]["text"]
+    assert "못 찾음" in text
+
+
+def test_tools_list_includes_autopsy():
+    resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])
+    names = {t["name"] for t in resp[0]["result"]["tools"]}
+    assert "token_saver_autopsy" in names
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0
