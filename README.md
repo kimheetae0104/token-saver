@@ -26,7 +26,17 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
 ## 알려진 제한사항
 
 - `statusLine`(measure.py 기반 토큰/비용 표시줄)은 플러그인 `settings.json`이 지원하는 필드가 아니라서 자동 적용되지 않습니다. 쓰려면 설치 후 직접 프로젝트 `.claude/settings.json`에 추가하세요(`hooks/hooks.json` 옆의 예시 구조 참고, `.claude/settings.json`이 원본).
-- **Claude Desktop 앱에서는 hooks가 실행되지 않습니다**(2026-08-05 실사용 확인 — Desktop 앱은 Claude Code를 stream-json server/API 모드로 구동해 interactive CLI 모드 전용인 hooks가 발화하지 않음, [claude-code#63360](https://github.com/anthropics/claude-code/issues/63360) 미해결). 즉 `habit_coaching.py`·`intent_gate.py`·`session_autopsy.sh`·`--statusline`·`--check` 전부 Desktop에서는 침묵합니다. `CLAUDE.md`의 서술형 규칙(라우팅·출력통제 등)은 Claude가 프로젝트 컨텍스트를 읽는 한 여전히 적용되는 것으로 보이나, 능동적 계측·코칭·`production_failures.jsonl` 수집은 CLI/IDE 확장(터미널·VS Code·JetBrains — 전부 동일 엔진 사용, hooks 정상 발화)에서만 동작합니다.
+- **Claude Desktop 앱 Code 탭에서는 hooks가 실행되지 않습니다**(desktop/desktop#22138,
+  closed as not planned — Anthropic 의도적 미지원, 우회 불가). `habit_coaching.py`·`intent_gate.py`·
+  `session_autopsy.sh`·`--statusline`·`--check` 전부 Desktop Code 탭에서는 침묵합니다.
+  2026-08-05부터 이 공백을 두 갈래로 best-effort 복원합니다: (1) 텍스트 코칭 규칙은 전역 Skill
+  `token-saver-rules`로 이식돼 MCP 없이도 Desktop 포함 모든 환경에 적용됩니다. (2) 실제 트랜스크립트
+  계산이 필요한 매 턴 효율 줄·세션 부검·실패 사례 수집은 MCP 서버(`mcp/server.py`,
+  `token_saver_check`/`token_saver_autopsy` 툴)로 노출됩니다 — MCP는 hooks와 달리 Desktop Code 탭에서
+  실측 연결 확인됨(단, hooks와 달리 모델의 tool_use 호출이라는 실제 비용이 듦, MCP 자체 상시연결이
+  안 되는 Cowork에서는 이 경로도 안 통함 — Cowork와 Desktop Code 탭은 다른 제품). 상세:
+  `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md`,
+  실측 결과: `experiments/PROTOCOL.md`.
 
 ## 라이선스
 
