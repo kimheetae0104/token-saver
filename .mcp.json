@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "token-saver-probe": {
+      "command": "python3",
+      "args": ["${CLAUDE_PROJECT_DIR}/experiments/desktop_mcp_probe/probe_server.py"]
+    }
+  }
+}
