@@ -1,6 +1,15 @@
 """실험 9 — 오라클 없는 과제(G1~G5) 사전정의 루브릭. LLM 판단이 아니라 키워드/구조
 기반 결정론 채점(AI-YAGNI). "정답"이 아니라 "필수 요소 포함 여부"만 확인 — 프로즈 채점의
 근본적 한계이므로 이진 판정(핵심 요소 포함=PASS)만 하고 문체·유창성은 채점 대상 아님.
+
+**위음성 경고(N=70 라운드 실측, PROTOCOL.md 참고)**: round2(N=20)에서 이 오라클이
+7/20 FAIL 판정했으나 전부 재검증 결과 위음성으로 확인됨(G1: "부분" 대신 "일부만"·
+"특정 필드만" 등 동의어 사용, G2: "블로킹"/"I/O-bound" 대신 "완료될 때까지 기다린다"·
+"네트워크 요청/파일 읽기/DB 조회" 등 풀어쓴 표현). 아래 G1·G2 정규식은 그 두 가지를
+반영해 보강했지만, **동의어를 계속 쫓는 건 밑 빠진 독**이다 — 표본이 늘수록 새로운
+표현이 또 나올 수 있다. 그래서 이 오라클의 FAIL은 "진짜 실패" 확정이 아니라
+"재검증 필요" 신호로만 취급할 것. 원문 그대로(요약 금지) Sonnet 배치판정으로
+교차검증한 뒤에만 최종 판정 — 헬퍼는 `verify_fails.py` 참고.
 """
 import re
 
@@ -9,17 +18,20 @@ TASKS = {
         "prompt": "REST API에서 PATCH와 PUT의 차이가 왜 중요한지 3문장 이내로 설명해줘.",
         "rubric": lambda text: (
             bool(re.search(r"PUT.{0,40}(전체|idempotent|멱등)", text, re.I))
-            and bool(re.search(r"PATCH.{0,40}(부분)", text, re.I))
+            and bool(re.search(r"PATCH.{0,40}(부분|일부만|특정.{0,10}필드|해당.{0,10}필드)", text, re.I))
         ),
-        "rubric_desc": "PUT=전체교체/멱등 + PATCH=부분수정 둘 다 언급",
+        "rubric_desc": "PUT=전체교체/멱등 + PATCH=부분수정(동의어 포함) 둘 다 언급",
     },
     "G2": {
         "prompt": "동기 처리와 비동기 처리를 각각 언제 써야 하는지 설명해줘.",
         "rubric": lambda text: (
-            bool(re.search(r"(블로킹|blocking)", text, re.I))
-            and bool(re.search(r"(I/O|입출력).{0,30}(바운드|bound)", text, re.I))
+            bool(re.search(r"(블로킹|blocking|기다|대기)", text, re.I))
+            and bool(re.search(
+                r"(I/O|입출력).{0,30}(바운드|bound)"
+                r"|네트워크\s*요청|파일\s*읽기|DB\s*조회|디스크\s*읽기",
+                text, re.I))
         ),
-        "rubric_desc": "블로킹/논블로킹 구분 + I/O-bound 상황 언급",
+        "rubric_desc": "블로킹/논블로킹(동의어 포함) 구분 + I/O-bound 상황(동의어 포함) 언급",
     },
     "G3": {
         "prompt": (

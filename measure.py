@@ -27,8 +27,12 @@ import argparse
 import re
 
 # ── config (단가는 2026-08 공식 pricing 기준; 런타임 재확인 권장) ──
+# Claude Code는 프로젝트 경로의 비영숫자 문자를 '-'로 치환해 세션 디렉터리명을 만든다
+# (예: /Volumes/Extreme SSD/worktree/token-saver → -Volumes-Extreme-SSD-worktree-token-saver).
+# 하드코딩하면 프로젝트 폴더 이동 시 조용히 옛 경로를 가리키게 되므로(2026-08-04 실제로 발생:
+# token-test → worktree/token-saver 이동 후 미수정 상태로 남아있었음) 스크립트 위치 기준으로 계산한다.
 TRANSCRIPT_DIR = os.path.expanduser(
-    "~/.claude/projects/-Volumes-Extreme-SSD-token-test")
+    "~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", os.path.dirname(os.path.abspath(__file__))))
 BASE_IN = {           # $/MTok, base input. 파생: out=5x, w5m=1.25x, w1h=2x, read=0.1x
     "opus": 5.0,
     "sonnet": 2.0,    # Sonnet 5 도입가; 2026-09-01부터 3.0
@@ -60,6 +64,10 @@ THRESH = {
     "cache_hit_low": 0.85,    # 캐시 적중률 하한 — 실측 0.94~0.98이 정상 구간, 유지
     "sunk_input": 120_000,    # 마지막 턴 total_input 이상이면 새 세션 권장 — 실측과 정성판단 일치, 유지
     "many_agents": 12,        # 서브에이전트 다수 — 건강 상한(10, outlier 30 제외) 바로 위로 상향
+    "delegation_bash": 3,     # 서브에이전트 1건 내부 Bash 호출 수 — 실험10 패턴(생성→판정→비용측정
+                              # 등 다단계를 서브에이전트 1개에 통위임, 오버헤드가 74.1%→11.5% 절감으로
+                              # 갉아먹음) 재현 감지용. 아직 미보정(N=1, 실험10 단일 사례) — 향후 실사용
+                              # 세션 누적되면 재검토.
 }
 CORRECTION_MARKERS = [
     "아니 ", "아니,", "그게 아니", "그거 아니", "틀렸", "틀린", "되돌", "취소",
@@ -236,6 +244,8 @@ def proxies(sess, per_turn):
     # verbosity
     outs = [t["output"] for t in per_turn if t["output"]]
     verbosity = (sum(outs) / len(outs)) if outs else 0.0
+    # delegation overhead: 서브에이전트 통위임 재발 감지(실험10)
+    delegation_hits, delegation_ratio = _delegation_overhead(sess["path"])
     return {
         "cache_thrash": thrash,
         "read_thrash": read_thrash,
@@ -246,6 +256,8 @@ def proxies(sess, per_turn):
         "clarify": clarify,
         "verbosity": verbosity,
         "n_agent_spawns": sess["n_agent_spawns"],
+        "delegation_hits": delegation_hits,
+        "delegation_ratio": delegation_ratio,
     }
 
 
@@ -309,6 +321,14 @@ def autopsy(tot, px, per_turn):
         add("과분해 가능", "low",
             f"서브에이전트 {px['n_agent_spawns']}회 spawn(각 cold-start)",
             "trivial 작업은 하나로 배치 위임(item당 1개 금지)")
+    if px["delegation_hits"]:
+        n = len(px["delegation_hits"])
+        max_bash = max(h["bash_calls"] for h in px["delegation_hits"])
+        sev = "high" if px["delegation_ratio"] > 0.30 else "med"
+        add("위임 오버헤드 의심", sev,
+            f"서브에이전트 {n}건이 내부 Bash {max_bash}회+/중첩 Agent로 자체 오케스트레이션"
+            f"(비용비중 {px['delegation_ratio']*100:.0f}%)",
+            "다단계 파이프라인 통위임 금지 — 메인이 각 단계를 병렬 직접호출(Agent 여러 콜)로 쪼개고 결과만 회수(실험10)")
     if per_turn and per_turn[-1]["total_input"] > THRESH["sunk_input"]:
         add("Sunk-cost 세션", "med",
             f"마지막 턴 입력 {per_turn[-1]['total_input']:,} 토큰",
@@ -328,6 +348,12 @@ def fmt(n):
 
 def money(x):
     return f"${x:,.4f}" if x < 1 else f"${x:,.2f}"
+
+
+def cost_label():
+    """구독 계정이면 실제 청구가 아니라는 걸 매 출력에서 명시(리포트에만 붙어있으면
+    --diff/--all만 보는 사용자가 실청구액으로 착각할 수 있어 공용 함수로 통일)."""
+    return "동등 API 비용(구독=참고치)" if ACCOUNT == "subscription" else "비용"
 
 
 def latest_session():
@@ -377,6 +403,32 @@ def actor_breakdown(main_path):
     grand_tokens = sum(r["tokens"] for r in rows)
     grand_cost = sum(r["cost"] for r in rows)
     return rows, grand_tokens, grand_cost
+
+
+def _delegation_overhead(main_path):
+    """실험10 패턴 감지: 서브에이전트 1건이 내부에서 Bash를 여러 번 호출하거나
+    중첩 Agent를 스폰해 스스로 다단계 파이프라인(생성→판정→비용측정 등)을
+    수행 중인 경우. 이런 '통위임'은 컨텐츠만 봤을 때의 절감률을 오버헤드가
+    크게 갉아먹는 게 실측됨(74.1%→11.5%, 실험10) — 사후 감지용, 판정 아님."""
+    hits = []
+    total_cost = 0.0
+    overhead_cost = 0.0
+    for tp in discover_task_files(main_path):
+        sess = parse_session(tp)
+        if not sess["assistants"]:
+            continue
+        tot, _ = aggregate(sess)
+        total_cost += tot["cost"]
+        bash_calls = sum(a["tools"].count("Bash") for a in sess["assistants"])
+        nested_agents = sum(a["tools"].count("Agent") for a in sess["assistants"])
+        if bash_calls >= THRESH["delegation_bash"] or nested_agents >= 1:
+            overhead_cost += tot["cost"]
+            meta = _agent_meta(tp)
+            hits.append({"agent_type": meta.get("agentType") or "unknown",
+                         "bash_calls": bash_calls, "nested_agents": nested_agents,
+                         "cost": tot["cost"]})
+    ratio = (overhead_cost / total_cost) if total_cost else 0.0
+    return hits, ratio
 
 
 def _desc_tokens(desc):
@@ -494,13 +546,12 @@ def print_report(path):
     tot, per_turn = aggregate(sess)
     px = proxies(sess, per_turn)
     score = efficiency_score(tot, px)
-    note = "동등 API 비용(구독=참고치)" if ACCOUNT == "subscription" else "비용"
     print(f"\n== 세션 리포트 ==  {os.path.basename(path)}")
     print(f"  턴(assistant): {tot['turns']}   효율 점수: {score}/100")
     print(f"  토큰  input={fmt(tot['input'])}  cache_create={fmt(tot['cache_create'])}"
           f"  cache_read={fmt(tot['cache_read'])}  output={fmt(tot['output'])}")
     print(f"  총 토큰: {fmt(tot['total_tokens'])}   캐시 적중률: {tot['cache_hit']*100:.0f}%")
-    print(f"  {note}: {money(tot['cost'])}")
+    print(f"  {cost_label()}: {money(tot['cost'])}")
     print(f"  프록시  병렬={px['parallelism']*100:.0f}%  read_thrash={px['read_thrash']*100:.0f}%"
           f"  correction={px['correction']*100:.0f}%  clarify={px['clarify']}"
           f"  verbosity={px['verbosity']:.0f}/턴  agents={px['n_agent_spawns']}")
@@ -535,7 +586,7 @@ def print_diff(a, b):
                        ("output", "output"), ("cache_read", "cache_read")]:
         print(f"  {label:18} {fmt(ta[key]):>14} {fmt(tb[key]):>14}")
     print(f"  {'캐시 적중률':16} {ta['cache_hit']*100:>13.0f}% {tb['cache_hit']*100:>13.0f}%")
-    print(f"  {'비용':18} {money(ta['cost']):>14} {money(tb['cost']):>14}")
+    print(f"  {cost_label():18} {money(ta['cost']):>14} {money(tb['cost']):>14}")
     if ta["total_tokens"]:
         save = (1 - tb["total_tokens"] / ta["total_tokens"]) * 100
         print(f"  → B는 A 대비 총 토큰 {save:+.0f}%")
@@ -547,7 +598,7 @@ def print_all():
     if not files:
         print("세션 없음.")
         return
-    print(f"\n== 세션 간 추세 ==  ({len(files)} 세션)")
+    print(f"\n== 세션 간 추세 ==  ({len(files)} 세션, {cost_label()})")
     print(f"  {'세션':22} {'턴':>5} {'총토큰':>12} {'적중%':>6} {'효율':>5} {'비용':>10}")
     tot_tokens = tot_cost = 0
     hits = []
@@ -583,7 +634,14 @@ def do_statusline():
 
 
 def do_check():
-    """UserPromptSubmit hook용: stdin JSON → 컨텍스트/캐시 경고 한 줄(넘을 때만)."""
+    """UserPromptSubmit hook용: stdin JSON → 매 턴 압축 상태 1줄(+ 임계값 넘으면 경고 추가).
+    2026-08-05 변경: 이전엔 경고 있을 때만 출력(침묵=정상)이었음 — 그러면 정상 상태에선
+    아무 신호가 없어 사용자가 "효율화가 실제로 작동 중"이라는 걸 매 턴 체감할 방법이
+    없었음(statusLine은 플러그인 settings.json 한계로 자동 미적용, README 참고).
+    UserPromptSubmit은 hooks.json으로 설치 시 자동 발화하는 유일한 무설정 경로라
+    여기서 상시 가시화한다. 침묵 대신 상시 출력이라 토큰 비용이 미세하게 늘지만
+    (한 줄, 수십 토큰), 매 턴 눈에 보이는 피드백 자체가 습관 형성·이상 조기발견에
+    본질적이라고 판단(북극성: 신호 밀도, 필요한 신호를 자르지 않기)."""
     try:
         payload = json.load(sys.stdin)
     except Exception:
@@ -591,17 +649,20 @@ def do_check():
     path = payload.get("transcript_path") or latest_session()
     if not path or not os.path.isfile(path):
         return
-    tot, per_turn = aggregate(parse_session(path))
+    sess = parse_session(path)
+    tot, per_turn = aggregate(sess)
     if not per_turn:
         return
+    px = proxies(sess, per_turn)
+    score = efficiency_score(tot, px)
+    msgs = [f"⟢ 턴{tot['turns']} · {fmt(tot['total_tokens'])}tok · "
+            f"hit {tot['cache_hit']*100:.0f}% · {money(tot['cost'])} · 효율{score:.0f}"]
     last = per_turn[-1]["total_input"]
-    msgs = []
     if last > THRESH["sunk_input"]:
         msgs.append(f"⚠️ 컨텍스트 {last:,} 토큰 — 작업 경계면 /compact, 무관 작업이면 /clear 권장")
     if tot["cache_hit"] < THRESH["cache_hit_low"] and tot["turns"] > 6:
         msgs.append(f"⚠️ 캐시 적중률 {tot['cache_hit']*100:.0f}% — 모델·effort 전환 자제")
-    if msgs:
-        print(" ".join(msgs))
+    print(" ".join(msgs))
 
 
 def do_capture_failures(path, data_dir=None):
