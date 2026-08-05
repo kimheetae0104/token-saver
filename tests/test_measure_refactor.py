@@ -44,7 +44,7 @@ def test_autopsy_text_has_header():
         with open(path, "w") as f:
             f.write(FIXTURE)
         text = measure.autopsy_text(path)
-        assert text.startswith("== 낭비 부검 ==")
+        assert text.startswith("\n== 낭비 부검 ==")
         assert os.path.basename(path) in text
 
 

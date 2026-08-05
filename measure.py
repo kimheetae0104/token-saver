@@ -581,7 +581,7 @@ def autopsy_text(path):
     tot, per_turn = aggregate(sess)
     px = proxies(sess, per_turn)
     finds = autopsy(tot, px, per_turn)
-    lines = [f"== 낭비 부검 ==  {os.path.basename(path)}"]
+    lines = [f"\n== 낭비 부검 ==  {os.path.basename(path)}"]
     if not finds:
         lines.append("  이상 신호 없음. 효율 양호.")
     else:
