@@ -45,7 +45,8 @@ def tool_autopsy():
     project_dir = resolve_project_dir()
     path = measure.latest_session(project_dir=project_dir)
     if not path or not os.path.isfile(path):
-        return f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}"
+        return (f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}, "
+                f"탐색 경로={measure.transcript_dir(project_dir)}")
     parts = [measure.autopsy_text(path)]
     data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     cap = measure.capture_failures_text(path, data_dir=data_dir)

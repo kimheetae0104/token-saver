@@ -61,6 +61,7 @@ def test_autopsy_tool_reports_missing_transcript_diagnostically():
     )
     text = resp[0]["result"]["content"][0]["text"]
     assert "못 찾음" in text
+    assert "/nonexistent/token-saver-test-fixture-xyz" in text
 
 
 def test_tools_list_includes_autopsy():
