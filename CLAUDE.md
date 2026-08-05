@@ -50,16 +50,8 @@
 - 결정론 스크립트·grep로 될 일에 LLM 쓰지 않기(AI-YAGNI).
 
 ## Hook 미지원 환경 자가 점검 (Desktop 등)
-> `hooks.json`(UserPromptSubmit/Stop)은 Claude Desktop 앱에서 발화하지 않는다 — Desktop이
-> Claude Code를 stream-json server/API 모드로 구동해 hook 호출 경로 자체가 없기 때문
-> ([claude-code#63360](https://github.com/anthropics/claude-code/issues/63360), 미해결).
-> 이건 이 repo의 코드로 우회 불가한 업스트림 제약이다. 대신 `hooks/habit_coaching.py`·
-> `hooks/intent_gate.py`가 정규식으로 하던 판단을 아래에 텍스트 규칙으로 옮겨둔다 — **hook 실행
-> 여부와 무관하게 이 파일을 읽는 모든 환경(Desktop 포함)에서 매 턴 스스로 적용할 것.**
-> 단, 정확한 토큰 수·비용·캐시적중률처럼 **실측이 필요한 값은 흉내 낼 수 없다** — 그건 hook이
-> 도는 CLI/IDE 확장에서만 나온다. 숫자를 지어내 마치 측정한 것처럼 보고하지 말 것.
-- [연결어 과다] 사용자 메시지에 "그리고·또한·그런데·근데·그래서·하지만·그렇지만·그래도·게다가·혹시" 4개↑ → 간결화 제안.
-- [착수 전 4슬롯] 만들/구현/개발/작성/추가/리팩터/고쳐/수정/바꿔/변경/설계/빌드/생성 등 착수형 요청이 25단어 이하이면서 성공기준·범위 단어가 없으면 → 되묻거나 파싱본 echo 후 진행.
-- [방향전환] "대신·차라리·방향(을)?바꿔·처음부터 다시·다른 방식/방향으로·그거/그건 말고" 감지 → 착수 전 방향부터 확정 제안.
-- [교정 반복] "아니·틀렸·되돌·undo·revert" 같은 교정 마커가 반복되면 → 계획-후-실행으로 전환 제안.
-- [체감 장황/컨텍스트 비대] 정확한 수치는 못 재지만, 같은 내용을 반복 요약하거나 답이 계속 길어지는 게 스스로 느껴지면 압축·요약 없이 바로 결론부터 제시.
+> 이 섹션은 전역 Skill `token-saver-rules`로 이전됐다(2026-08-05,
+> `skills/token-saver-rules/SKILL.md`) — 플러그인을 설치한 모든 프로젝트에 적용되므로
+> 이 repo 로컬 사본은 더 유지하지 않는다. hooks 미지원 환경(Desktop Code 탭 등)에서 적용할
+> 규칙은 그 Skill 참고. 배경(왜 hooks가 안 도는지, MCP로 뭘 복원했는지)은
+> `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md` 참고.

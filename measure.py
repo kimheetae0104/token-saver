@@ -31,8 +31,18 @@ import re
 # (예: /Volumes/Extreme SSD/worktree/token-saver → -Volumes-Extreme-SSD-worktree-token-saver).
 # 하드코딩하면 프로젝트 폴더 이동 시 조용히 옛 경로를 가리키게 되므로(2026-08-04 실제로 발생:
 # token-test → worktree/token-saver 이동 후 미수정 상태로 남아있었음) 스크립트 위치 기준으로 계산한다.
-TRANSCRIPT_DIR = os.path.expanduser(
-    "~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", os.path.dirname(os.path.abspath(__file__))))
+def transcript_dir(project_dir=None):
+    """Claude Code 세션 저장 규칙: ~/.claude/projects/<프로젝트 경로의 비영숫자를 '-'로 치환>/.
+    project_dir 기본값은 이 스크립트 파일의 디렉터리 — 레포 자체를 CLI로 실행할 때 프로젝트
+    폴더가 이동해도 안 깨지는 기존 설계를 그대로 보존한다(2026-08-04 실제로 겪은 문제, 위 주석
+    참고). MCP 서버처럼 *다른* 프로젝트를 대신 찾아야 하는 호출부는 반드시 project_dir을 명시로
+    넘길 것 — 안 그러면 이 스크립트가 설치된 플러그인 디렉터리를 프로젝트로 착각한다."""
+    project_dir = project_dir or os.path.dirname(os.path.abspath(__file__))
+    return os.path.expanduser(
+        "~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", project_dir))
+
+
+TRANSCRIPT_DIR = transcript_dir()  # 하위호환 상수 — print_all() 등 기존 참조부 그대로 동작
 BASE_IN = {           # $/MTok, base input. 파생: out=5x, w5m=1.25x, w1h=2x, read=0.1x
     "opus": 5.0,
     "sonnet": 2.0,    # Sonnet 5 도입가; 2026-09-01부터 3.0
@@ -356,8 +366,8 @@ def cost_label():
     return "동등 API 비용(구독=참고치)" if ACCOUNT == "subscription" else "비용"
 
 
-def latest_session():
-    files = sorted(glob.glob(os.path.join(TRANSCRIPT_DIR, "*.jsonl")),
+def latest_session(project_dir=None):
+    files = sorted(glob.glob(os.path.join(transcript_dir(project_dir), "*.jsonl")),
                    key=os.path.getmtime)
     return files[-1] if files else None
 
@@ -563,18 +573,28 @@ def print_report(path):
         print(f"    합계(메인+서브)              토큰={fmt(grand_tokens):>12}  {money(grand_cost)}")
 
 
-def print_autopsy(path):
+def autopsy_text(path):
+    """세션 낭비 부검 리포트 문자열. print_autopsy()·MCP 서버 공용."""
+    if not path or not os.path.isfile(path):
+        return ""
     sess = parse_session(path)
     tot, per_turn = aggregate(sess)
     px = proxies(sess, per_turn)
     finds = autopsy(tot, px, per_turn)
-    print(f"\n== 낭비 부검 ==  {os.path.basename(path)}")
+    lines = [f"\n== 낭비 부검 ==  {os.path.basename(path)}"]
     if not finds:
-        print("  이상 신호 없음. 효율 양호.")
-        return
-    for f in finds:
-        print(f"  [{f['sev'].upper():4}] {f['name']}: {f['detail']}")
-        print(f"         → {f['tip']}")
+        lines.append("  이상 신호 없음. 효율 양호.")
+    else:
+        for f in finds:
+            lines.append(f"  [{f['sev'].upper():4}] {f['name']}: {f['detail']}")
+            lines.append(f"         → {f['tip']}")
+    return "\n".join(lines)
+
+
+def print_autopsy(path):
+    text = autopsy_text(path)
+    if text:
+        print(text)
 
 
 def print_diff(a, b):
@@ -633,26 +653,14 @@ def do_statusline():
           f"· {money(tot['cost'])} · {tot['turns']}턴")
 
 
-def do_check():
-    """UserPromptSubmit hook용: stdin JSON → 매 턴 압축 상태 1줄(+ 임계값 넘으면 경고 추가).
-    2026-08-05 변경: 이전엔 경고 있을 때만 출력(침묵=정상)이었음 — 그러면 정상 상태에선
-    아무 신호가 없어 사용자가 "효율화가 실제로 작동 중"이라는 걸 매 턴 체감할 방법이
-    없었음(statusLine은 플러그인 settings.json 한계로 자동 미적용, README 참고).
-    UserPromptSubmit은 hooks.json으로 설치 시 자동 발화하는 유일한 무설정 경로라
-    여기서 상시 가시화한다. 침묵 대신 상시 출력이라 토큰 비용이 미세하게 늘지만
-    (한 줄, 수십 토큰), 매 턴 눈에 보이는 피드백 자체가 습관 형성·이상 조기발견에
-    본질적이라고 판단(북극성: 신호 밀도, 필요한 신호를 자르지 않기)."""
-    try:
-        payload = json.load(sys.stdin)
-    except Exception:
-        payload = {}
-    path = payload.get("transcript_path") or latest_session()
+def check_line(path):
+    """세션 효율 한 줄(+조건부 경고) 문자열. 없으면 "". do_check()·MCP 서버 공용."""
     if not path or not os.path.isfile(path):
-        return
+        return ""
     sess = parse_session(path)
     tot, per_turn = aggregate(sess)
     if not per_turn:
-        return
+        return ""
     px = proxies(sess, per_turn)
     score = efficiency_score(tot, px)
     msgs = [f"⟢ 턴{tot['turns']} · {fmt(tot['total_tokens'])}tok · "
@@ -662,25 +670,43 @@ def do_check():
         msgs.append(f"⚠️ 컨텍스트 {last:,} 토큰 — 작업 경계면 /compact, 무관 작업이면 /clear 권장")
     if tot["cache_hit"] < THRESH["cache_hit_low"] and tot["turns"] > 6:
         msgs.append(f"⚠️ 캐시 적중률 {tot['cache_hit']*100:.0f}% — 모델·effort 전환 자제")
-    print(" ".join(msgs))
+    return " ".join(msgs)
 
 
-def do_capture_failures(path, data_dir=None):
-    """Stop hook용: Haiku 1차 실패 후보(에스컬레이션·사용자 교정)를 감지해 로그에 누적.
-    새 후보가 있을 때만 한 줄 출력(없으면 침묵).
+def do_check():
+    """UserPromptSubmit hook용: stdin JSON → check_line() 결과 출력(있으면)."""
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        payload = {}
+    path = payload.get("transcript_path") or latest_session()
+    line = check_line(path)
+    if line:
+        print(line)
+
+
+def capture_failures_text(path, data_dir=None):
+    """실패 후보 포착 요약 문자열. 없으면 "". do_capture_failures()·MCP 서버 공용.
     data_dir이 주어지면(플러그인 설치 시 ${CLAUDE_PLUGIN_DATA}) 그 경로에 쓴다 —
     ${CLAUDE_PLUGIN_ROOT}는 플러그인 업데이트마다 바뀌는 임시 경로라 로그 유실 위험이 있어서다."""
     path = path or latest_session()
     if not path or not os.path.isfile(path):
-        return
+        return ""
     log_path = os.path.join(data_dir, "production_failures.jsonl") if data_dir else None
     candidates = capture_failures(path, log_path=log_path)
-    if candidates:
-        kinds = {}
-        for c in candidates:
-            kinds[c["type"]] = kinds.get(c["type"], 0) + 1
-        detail = ", ".join(f"{k}×{v}" for k, v in kinds.items())
-        print(f"📋 실패 후보 {len(candidates)}건 포착({detail}) → {log_path or PRODUCTION_LOG}")
+    if not candidates:
+        return ""
+    kinds = {}
+    for c in candidates:
+        kinds[c["type"]] = kinds.get(c["type"], 0) + 1
+    detail = ", ".join(f"{k}×{v}" for k, v in kinds.items())
+    return f"📋 실패 후보 {len(candidates)}건 포착({detail}) → {log_path or PRODUCTION_LOG}"
+
+
+def do_capture_failures(path, data_dir=None):
+    text = capture_failures_text(path, data_dir=data_dir)
+    if text:
+        print(text)
 
 
 def main():
