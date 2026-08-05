@@ -9,8 +9,8 @@
     {
       "name": "token-saver",
       "source": "./",
-      "description": "Model-tier routing ladder + waste-detection coaching hooks for Claude Code. Measured savings only, no vendor claims. v0.x, N=6 sessions.",
-      "version": "0.1.0"
+      "description": "Model-tier routing ladder + waste-detection coaching hooks for Claude Code, plus a Skill+MCP fallback for Claude Desktop's Code tab. Measured savings only, no vendor claims. v0.x, N=6 sessions.",
+      "version": "0.2.0"
     }
   ]
 }
