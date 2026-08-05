@@ -1,8 +1,11 @@
 {
   "mcpServers": {
-    "token-saver-probe": {
+    "token-saver": {
       "command": "python3",
-      "args": ["${CLAUDE_PROJECT_DIR}/experiments/desktop_mcp_probe/probe_server.py"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/server.py"],
+      "env": {
+        "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
+      }
     }
   }
 }
