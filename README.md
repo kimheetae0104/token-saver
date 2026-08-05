@@ -40,7 +40,7 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
   closed as not planned — Anthropic 의도적 미지원, 우회 불가). `habit_coaching.py`·`intent_gate.py`·
   `session_autopsy.sh`·`--statusline`·`--check` 전부 Desktop Code 탭에서는 침묵합니다.
   2026-08-05부터 이 공백을 두 갈래로 best-effort 복원합니다: (1) 텍스트 코칭 규칙은 전역 Skill
-  `token-saver-rules`로 이식돼 MCP 없이도 Desktop 포함 모든 환경에 적용됩니다. (2) 실제 트랜스크립트
+  `token-saver:rules`로 이식돼 MCP 없이도 Desktop 포함 모든 환경에 적용됩니다. (2) 실제 트랜스크립트
   계산이 필요한 매 턴 효율 줄·세션 부검·실패 사례 수집은 MCP 서버(`mcp/server.py`,
   `token_saver_check`/`token_saver_autopsy` 툴)로 노출됩니다 — MCP는 hooks와 달리 Desktop Code 탭에서
   실측 연결 확인됨(단, hooks와 달리 모델의 tool_use 호출이라는 실제 비용이 듦, MCP 자체 상시연결이

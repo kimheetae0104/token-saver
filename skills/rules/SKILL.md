@@ -1,5 +1,5 @@
 ---
-name: token-saver-rules
+name: rules
 description: 모든 프로젝트에서 토큰 효율(신호 밀도 극대화) 규칙을 적용한다. hooks가 발화하는 CLI/IDE 환경에서는 이미 자동 적용 중이라 사실상 무동작이고, hooks가 없는 Claude Desktop Code 탭 같은 환경에서만 실질적으로 개입한다. 착수형 요청·연결어 과다·방향전환·교정 반복·장황함을 감지하거나, 매 턴 토큰/비용 확인이 필요할 때 사용.
 ---
 

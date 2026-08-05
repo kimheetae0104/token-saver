@@ -50,8 +50,8 @@
 - 결정론 스크립트·grep로 될 일에 LLM 쓰지 않기(AI-YAGNI).
 
 ## Hook 미지원 환경 자가 점검 (Desktop 등)
-> 이 섹션은 전역 Skill `token-saver-rules`로 이전됐다(2026-08-05,
-> `skills/token-saver-rules/SKILL.md`) — 플러그인을 설치한 모든 프로젝트에 적용되므로
+> 이 섹션은 전역 Skill `token-saver:rules`로 이전됐다(2026-08-05,
+> `skills/rules/SKILL.md`) — 플러그인을 설치한 모든 프로젝트에 적용되므로
 > 이 repo 로컬 사본은 더 유지하지 않는다. hooks 미지원 환경(Desktop Code 탭 등)에서 적용할
 > 규칙은 그 Skill 참고. 배경(왜 hooks가 안 도는지, MCP로 뭘 복원했는지)은
 > `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md` 참고.
