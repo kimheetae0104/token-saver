@@ -3,8 +3,9 @@
 
 Desktop 앱 Code 탭(Claude Code를 stream-json server/API 모드로 구동)은 hooks가
 발화하지 않는다(desktop/desktop#22138, closed as not planned) — 하지만 MCP는 살아있다
-(experiments/desktop_mcp_probe/probe_server.py로 실측 확인, 2026-08-05). 이 서버가
-measure.py의 계측 로직을 툴로 노출해 그 공백을 best-effort로 메운다.
+(docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md의 "사전 검증"
+섹션에서 실측 확인, 2026-08-05). 이 서버가 measure.py의 계측 로직을 툴로 노출해 그 공백을
+best-effort로 메운다.
 
 의존성 없음(mcp/@modelcontextprotocol/sdk 미설치 환경 대응) — JSON-RPC 2.0을
 stdin/stdout에 한 줄씩(뉴라인 구분, Content-Length 프레이밍 아님) 손수 구현.
@@ -31,22 +32,31 @@ def resolve_project_dir():
     return os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 
 
-def tool_check():
-    project_dir = resolve_project_dir()
-    path = measure.latest_session(project_dir=project_dir)
-    line = measure.check_line(path)
-    if line:
-        return line
-    return (f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}, "
-            f"탐색 경로={measure.transcript_dir(project_dir)}")
-
-
-def tool_autopsy():
+def _resolve_transcript():
+    """공용 트랜스크립트 탐색 — tool_check()·tool_autopsy() 둘 다 같은 '못 찾음' 조건을 쓰게 한다.
+    반환: (path, None) 찾음 / (None, 진단_메시지) 못 찾음."""
     project_dir = resolve_project_dir()
     path = measure.latest_session(project_dir=project_dir)
     if not path or not os.path.isfile(path):
-        return (f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}, "
-                f"탐색 경로={measure.transcript_dir(project_dir)}")
+        return None, (f"세션 트랜스크립트를 못 찾음 — project_dir={project_dir}, "
+                      f"탐색 경로={measure.transcript_dir(project_dir)}")
+    return path, None
+
+
+def tool_check():
+    path, err = _resolve_transcript()
+    if err:
+        return err
+    line = measure.check_line(path)
+    if line:
+        return line
+    return f"트랜스크립트는 찾았으나 집계 가능한 턴이 아직 없음 — {os.path.basename(path)}"
+
+
+def tool_autopsy():
+    path, err = _resolve_transcript()
+    if err:
+        return err
     parts = [measure.autopsy_text(path)]
     data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     cap = measure.capture_failures_text(path, data_dir=data_dir)
