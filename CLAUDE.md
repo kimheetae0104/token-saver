@@ -52,6 +52,8 @@
 ## Hook 미지원 환경 자가 점검 (Desktop 등)
 > 이 섹션은 전역 Skill `token-saver:rules`로 이전됐다(2026-08-05,
 > `skills/rules/SKILL.md`) — 플러그인을 설치한 모든 프로젝트에 적용되므로
-> 이 repo 로컬 사본은 더 유지하지 않는다. hooks 미지원 환경(Desktop Code 탭 등)에서 적용할
-> 규칙은 그 Skill 참고. 배경(왜 hooks가 안 도는지, MCP로 뭘 복원했는지)은
+> 이 repo 로컬 사본은 더 유지하지 않는다. hooks 미지원 환경에서 적용할
+> 규칙은 그 Skill 참고. **정정(2026-08-06)**: "Desktop Code 탭=hooks 원천 불가"는
+> 과일반화였다 — 실사용 macOS 세션에서 hooks 정상 발화 실측 확인, 원 이슈는 Windows
+> 한정. 배경·실측 결과는 `experiments/PROTOCOL.md` 실험11,
 > `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md` 참고.

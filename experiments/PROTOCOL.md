@@ -560,6 +560,46 @@ delegate가 최종 보고에 "생성/판정/에스컬레이션" 3가지 비용�
 동의어 보강만 믿지 않도록 함 — 처방 3 자체가 "밑 빠진 독"이라는 경고(541행)는 여전히
 유효, 표본이 더 늘면 또 다른 phrasing이 위음성을 낼 수 있음.
 
+### 실험 11 — Desktop Code 탭 능동 계측 복원, 실사용 검증 (2026-08-05/06)
+
+전제였던 "Desktop Code 탭은 hooks 원천 불가"([desktop/desktop#22138](https://github.com/desktop/desktop/issues/22138))
+에 기반해 `measure.py`를 CLI/MCP 공용 순수 함수로 리팩터하고, 텍스트 코칭 규칙을 전역 Skill
+(`skills/rules/SKILL.md`)로, 실측 계산이 필요한 부분을 MCP 서버(`mcp/server.py`,
+`token_saver_check`/`token_saver_autopsy`)로 노출(설계: `docs/superpowers/specs/
+2026-08-05-desktop-active-measurement-design.md`). 사전 검증은 손수 구현한 stdio 프로브로
+Desktop Code 탭의 MCP 연결 자체는 확인했었음.
+
+**실사용 검증(사용자의 다른 프로젝트, macOS Desktop Code 탭)에서 나온 실제 트랜스크립트를
+직접 열어본 결과 — 중요한 정정 2건:**
+
+1. **원 전제 자체가 과일반화였음.** `desktop/desktop#22138` 원문을 다시 보면 재현 환경이
+   명시적으로 **"Windows 11, Claude Desktop App v1.7196.0"**였다 — Windows 한정 버그를
+   이 프로젝트가 "Desktop Code 탭 전체"로 잘못 일반화했다. 이번 실사용 macOS 세션의 실제
+   트랜스크립트를 열어 확인한 결과, `UserPromptSubmit` hook이 **`attachment.type:
+   "hook_success"`로 18회 정상 발화**해 `⟢ 턴...` 줄이 그대로 출력됐다(hooks가 macOS
+   Desktop Code 탭에서 정상 동작 — CLI/IDE와 다르지 않음). 즉 이 실험 스레드 전체가 풀려던
+   문제(hooks 미발화)는 **macOS에서는 애초에 존재하지 않았다**. Skill+MCP 작업 자체가
+   무가치해진 건 아니다 — Windows Desktop Code 탭(원 이슈 재현 환경)이나 향후 hooks가
+   막히는 다른 환경엔 여전히 유일한 능동계측 경로이지만, "모든 Desktop 사용자"가 아니라
+   "hooks 미발화가 실측 확인된 환경" 한정으로 가치를 재조정해야 한다.
+
+2. **자기감지 지시가 신뢰할 수 없음이 실측으로 드러남.** hooks가 이미 정상 발화 중이었는데도
+   (즉 `⟢` 줄이 이미 보였는데도) 모델이 `token_saver_check` MCP 툴을 **2회 중복 호출
+   시도**했다 — `skills/rules/SKILL.md`의 "⟢ 줄이 이미 보이면 호출하지 마라" 지시가
+   실전에서 지켜지지 않은 사례. 두 시도 모두 우리 MCP 서버 코드에 도달하지도 못하고
+   Desktop의 "auto mode" 권한-안전성 체크(그 자체가 별도 LLM 호출) 단계에서 서버 과부하
+   (529 Overloaded)로 막혀 실패했다 — 우리 코드의 결함은 아니지만, hooks가 있는 환경에서
+   불필요한 MCP 호출 시도 자체가 이미 낭비(안전성 체크 비용 + 실패 시 사용자 혼란)라는 걸
+   확인. 처방(미착수, 후속 과제): Skill 지시를 더 단정적으로 강화하거나, 애초에 hooks
+   존재 여부를 모델이 아니라 결정론적으로 판별할 방법을 찾아야 함 — 현재는 "컨텍스트에
+   보이면"이라는 프롬프트 수준 판단에 의존해 신뢰도가 낮다.
+
+**결론**: MCP 서버가 Desktop Code 탭에서 연결·호출된다는 사전 프로브 결과는 여전히 유효
+(호출 자체는 auto-mode 게이트에서 막혔지만, 그 게이트에 도달했다는 것 자체가 MCP 경로가
+살아있다는 증거). 다만 이 실험 스레드의 원래 동기(hooks 미발화)는 macOS에서는 반증됐고,
+자기감지 로직의 신뢰도 문제가 새로 발견됐다 — 둘 다 문서(`README.md`·`CLAUDE.md`)에
+반영 필요.
+
 ### 실험 템플릿 (복사해서 채우기)
 | 지표 | Baseline | Optimized | 차이 |
 |---|---:|---:|---:|

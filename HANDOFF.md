@@ -254,6 +254,24 @@ $2.2893 — 베이스라인($2.586) 대비 **0.885배(11.5% 절감)**로, 컨텐
 오히려 신뢰도가 떨어지는(과적합) 역설을 실측으로 확인. 처방: 오라클 FAIL은 "진짜 실패"가 아니라
 "재검증 필요" 신호로 취급, Sonnet/수동 교차검증 필수. 상세: `experiments/PROTOCOL.md` 실험9 후속5.
 
+## Desktop Code 탭 능동 계측 복원 + 전제 정정 (2026-08-05/06, 8차)
+hooks가 Desktop Code 탭에서 안 된다는 전제(desktop/desktop#22138)로 Skill+MCP 복원 작업 진행:
+텍스트 규칙은 전역 Skill `token-saver:rules`로, 실측 필요 부분(매턴 효율 줄·부검·실패수집)은
+`mcp/server.py`(`token_saver_check`/`token_saver_autopsy`)로. `measure.py`는 CLI/MCP 공용
+순수 함수로 리팩터(`check_line`/`autopsy_text`/`capture_failures_text`/`transcript_dir`).
+SDD 서브에이전트 방식으로 7태스크 구현·리뷰·머지·push·플러그인 재설치(0.2.1) 완료.
+
+**실사용 검증에서 나온 정정(중요)**: 사용자의 다른 프로젝트(macOS Desktop Code 탭) 실제
+트랜스크립트를 열어보니 원 전제가 **과일반화**였음이 드러남 — `desktop/desktop#22138`
+원문은 "Windows 11" 한정 재현이었는데, hooks가 macOS Desktop Code 탭에서 **정상 발화함을
+실측 확인**(`UserPromptSubmit` hook_success 18건, `⟢` 줄 정상 출력). 즉 이 스레드가 풀려던
+문제 자체가 macOS엔 없었다. 대신 새로 발견: hooks 정상 발화 중에도 모델이 `token_saver_check`
+MCP 툴을 중복 호출 시도(Skill의 자기감지 지시 미준수) — Desktop auto-mode 안전성 체크가
+서버과부하(529)로 막혀 실패했지만, 애초에 불필요한 시도 자체가 낭비. 상세:
+`experiments/PROTOCOL.md` 실험11. Windows Desktop Code 탭 등 hooks가 실제로 막힌 환경에는
+여전히 유효한 fallback — 문서(README/CLAUDE.md)는 이 정정을 반영해 갱신 완료.
+**후속 과제**: 자기감지 지시 신뢰도 개선(현재는 프롬프트 판단에만 의존) — 미착수.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).

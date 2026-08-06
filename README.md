@@ -36,17 +36,20 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
   }
   ```
   (위 명령 그대로 위 `설치` 절 순서로 설치한 경우의 실제 경로입니다 — marketplace add 시 클론되는 위치는 `~/.claude/plugins/marketplaces/<marketplace-name>/`.)
-- **Claude Desktop 앱 Code 탭에서는 hooks가 실행되지 않습니다**(desktop/desktop#22138,
-  closed as not planned — Anthropic 의도적 미지원, 우회 불가). `habit_coaching.py`·`intent_gate.py`·
-  `session_autopsy.sh`·`--statusline`·`--check` 전부 Desktop Code 탭에서는 침묵합니다.
-  2026-08-05부터 이 공백을 두 갈래로 best-effort 복원합니다: (1) 텍스트 코칭 규칙은 전역 Skill
-  `token-saver:rules`로 이식돼 MCP 없이도 Desktop 포함 모든 환경에 적용됩니다. (2) 실제 트랜스크립트
-  계산이 필요한 매 턴 효율 줄·세션 부검·실패 사례 수집은 MCP 서버(`mcp/server.py`,
-  `token_saver_check`/`token_saver_autopsy` 툴)로 노출됩니다 — MCP는 hooks와 달리 Desktop Code 탭에서
-  실측 연결 확인됨(단, hooks와 달리 모델의 tool_use 호출이라는 실제 비용이 듦, MCP 자체 상시연결이
-  안 되는 Cowork에서는 이 경로도 안 통함 — Cowork와 Desktop Code 탭은 다른 제품). 상세:
+- **Claude Desktop 앱 Code 탭 hooks 미발화는 Windows 한정 버그입니다(macOS는 정상 동작, 2026-08-06
+  실측 정정)** — [desktop/desktop#22138](https://github.com/desktop/desktop/issues/22138)이 재현
+  환경을 "Windows 11"로 명시했는데, 이 프로젝트가 처음엔 이를 Desktop 전체 문제로 과일반화했습니다.
+  실사용 macOS Desktop Code 탭 세션의 실제 트랜스크립트를 열어보니 `UserPromptSubmit` hook이
+  정상 발화해 `⟢` 효율 줄이 그대로 출력됐습니다(`experiments/PROTOCOL.md` 실험11). 그래도
+  Windows Desktop Code 탭(원 이슈 재현 환경) 등 hooks가 실제로 막힌 환경을 위해 두 갈래
+  best-effort 복원을 남겨둡니다: (1) 텍스트 코칭 규칙은 전역 Skill `token-saver:rules`로 이식돼
+  MCP 없이도 모든 환경에 적용됩니다. (2) 실제 트랜스크립트 계산이 필요한 매 턴 효율 줄·세션
+  부검·실패 사례 수집은 MCP 서버(`mcp/server.py`, `token_saver_check`/`token_saver_autopsy`
+  툴)로 노출됩니다. **알려진 결함**: Skill의 "hooks 줄이 이미 보이면 MCP 호출 생략" 자기감지
+  지시가 실전에서 안 지켜지는 사례가 실측됨(hooks 정상 발화 중에도 모델이 MCP를 중복 호출
+  시도) — 후속 개선 필요, 상세는 실험11 참고. 상세 설계:
   `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md`,
-  실측 결과: `experiments/PROTOCOL.md`.
+  실측 결과: `experiments/PROTOCOL.md` 실험11.
 
 ## 라이선스
 
