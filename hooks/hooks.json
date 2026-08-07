@@ -1,5 +1,13 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/read_guard.py\"" }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
