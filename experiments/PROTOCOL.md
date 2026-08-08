@@ -640,6 +640,70 @@ Desktop Code 탭의 MCP 연결 자체는 확인했었음.
 백테스트를 설계할 때 "무엇을 측정할지"만큼 "측정 대상 데이터의 경계"를 명시적으로 좁혀야
 한다.
 
+### 실험 13 — production_failures.jsonl 141건 표본 라벨링 (2026-08-08)
+동기: 로드맵 태스크4 — capture_failures()가 실사용 중 축적한 141건(escalation_pair 3,
+user_correction_follow 138)이 "재검토 후보"일 뿐 확정 판정이 아니므로, 실제 위양성률을
+사람이 직접 대조해야 이 파이프라인의 신뢰도를 알 수 있다.
+
+**설정**: `label_failures.py`로 type별 층화 고정시드(seed=13) 표본 18건(escalation_pair 3
+전수 + user_correction_follow 15) 추출, 각 세션 원문(`~/.claude/projects/.../<session>.jsonl`)
+대조. escalation_pair는 `_similar_desc()`(자카드 유사도 ≥0.5) 매치 지점의 두 Agent tool_use
+호출과 그 직후 컨텍스트를, user_correction_follow는 `_has_marker()`/`PIVOT_MARKERS` 매치가
+실제로 걸린 지점(120자 절단 미리보기가 아니라 원문 전체에서 마커 재탐색)을 확인했다.
+
+**결과**:
+
+| type | 표본 | real_escalation | false_positive | ambiguous | 위양성률 |
+|---|---:|---:|---:|---:|---:|
+| escalation_pair | 3(전수) | 0 | 3 | 0 | 100% |
+| user_correction_follow | 15/138 | 0 | 15 | 0 | 100% |
+| **합계** | **18** | **0** | **18** | **0** | **100%** |
+
+판단 근거(건별):
+- `esc:...NbVCzE...:...VbGXSr...` (session `5c0e4e6c`, "난이도 실험: Haiku 버그찾기"→"난이도
+  실험: Opus 버그찾기") — **false_positive**. 두 Agent 호출이 1초 간격으로 나란히 발화(같은
+  부모 턴), 둘 다 동일 프롬프트로 병렬 실행된 의도적 A/B 난이도 비교(`baseline` 리터럴이
+  없어 기존 필터를 통과함). Haiku도 버그를 정확히 찾아냈고 실패해서 재위임된 흔적이 없음.
+- `esc:...B3pEW8...:...CTwUBG8...` (session `e796ed47`, "Re-review Task 1 fix round 1"→
+  "Re-review final review fix wave") — **false_positive**. 두 서브에이전트는 서로 다른
+  diff(`526f91d..912e658` vs `712e5e7..08aede5`)와 서로 다른 finding을 검증하는 무관한
+  재검토였고, 발화 시각도 10:12 vs 13:13로 3시간 차. `_desc_tokens` 교집합이 {re, review,
+  fix}뿐인데 두 설명 모두 "Re-review ... fix ..." 정형 문구를 쓰다 보니 자카드 0.5로 우연히
+  임계값을 넘김.
+- `esc:...EQJCMd8...:...CTwUBG8...` (session `e796ed47`, "Re-review Task 3 fix round 1"→
+  같은 "Re-review final review fix wave") — **false_positive**. 위와 동일한 원인 — 같은
+  무관 sonnet 태스크가 서로 다른 haiku 태스크 두 개와 각각 매치됨(설명 템플릿이 반복 사용되는
+  재검토 워크플로우 자체가 이 휴리스틱의 구조적 맹점).
+- `user_correction_follow` 15건 전부(session `e796ed47`) — **false_positive, 단일 근본원인**.
+  표본 15건의 `user_text_snippet`이 전부 `<task-notification>...<tool-use-id>
+  toolu_01PPD5VymZJsFe3YDsyQQ6pB...`로 시작하는 동일 문자열(120자 절단 미리보기라 겉보기엔
+  건별로 다른 실패처럼 보이지만 실은 한 개의 메시지). 실제로 138건 전수를 확인한 결과 100%가
+  이 패턴이며, 그중 137/138이 이 세션 하나에서 나옴. 원문(9,786자) 전체를 마커 재스캔하니
+  매치된 마커는 `PIVOT_MARKERS`의 `"대신"` 단 1회뿐 — 실험12("100가지 자동 절감 시나리오
+  탐색") Workflow가 완료되며 자동 주입된 시스템 `<task-notification>`(사람이 아니라 Workflow
+  도구가 생성한 최종 보고서 텍스트) 안에서 "실측 대신 유추" 같은 문맥으로 등장한 것이지 사용자가
+  방향을 바꾼 게 아님. 게다가 `capture_failures()`의 "haiku 종료 후 가장 가까운 다음 user
+  메시지" 매칭 로직이 **role:user로 로그되는 시스템 알림까지 사용자 발화로 취급**하고, 이
+  워크플로우의 최종 알림 하나가 그 이전에 끝난 137개의 서로 무관한 haiku 서브에이전트 각각의
+  "다음 user 메시지"로 동시에 걸려 **1건의 우연한 키워드 매치가 137개 로그 레코드로 증폭**됐다.
+
+**해석**: 표본 18/18(100%) 위양성 — `escalation_pair`는 설명 자카드 유사도만으로 판단해
+"재검토/재실행 정형 문구가 반복되는 워크플로우"와 "실패로 인한 재위임"을 구분 못 하고, 병렬
+A/B 비교(`baseline` 리터럴 없는 변형)도 걸러내지 못한다. `user_correction_follow`는 더 심각한
+구조적 결함이 있다 — (1) 시스템이 주입한 `<task-notification>`을 사용자 발화와 구분하지 않고,
+(2) "다음 user 메시지 1개"를 그 시점 이전에 끝난 **모든** haiku 레코드에 중복 매칭시켜 단일
+오탐이 대량 증폭된다. 표본 N=18(특히 escalation_pair는 N=3)이 작아 100%를 모집단 참위양성률로
+일반화할 수는 없지만, user_correction_follow는 138건 전수 중 137건이 이미 동일 근본원인 1건으로
+소급되는 게 확인됐으므로 이 타입에 한해서는 표본 이상의 근거(사실상 전수 조사)가 있다.
+
+**처방**: (1) `capture_failures()`의 "다음 user 메시지" 매칭에 `origin.kind == "task-notification"`
+(또는 role:user이지만 시스템 주입인) 메시지를 제외하는 필터 추가 — 최소 수정으로 137건 오탐의
+근본원인 제거. (2) 동일 next-user-message가 여러 haiku 레코드에 중복 매칭되지 않도록 "가장 가까운
+1개"가 아니라 "그 haiku 종료 후 다음 haiku 시작 전까지" 구간으로 매칭 폭을 좁히는 것도 고려.
+(3) `escalation_pair`는 `_similar_desc()`에 "같은 재검토 배치 내 정형 문구" 오탐 방지용 신호(예:
+diff 파일 경로·finding 텍스트가 다르면 무관 판정) 추가 검토, 또는 임계값을 0.5→더 높게 상향.
+모두 후속 태스크로 분리 — 이 태스크는 라벨링과 근본원인 특정까지만.
+
 ### 실험 템플릿 (복사해서 채우기)
 | 지표 | Baseline | Optimized | 차이 |
 |---|---:|---:|---:|
