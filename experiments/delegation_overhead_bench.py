@@ -1,5 +1,5 @@
-"""experiments/delegation_overhead_bench.py — 실험10(N=1)을 N≥5로 재실행하기 위한 지표
-계산 로직. 실제 위임 실행(Agent 도구로 오케스트레이터 서브에이전트 N=5회 디스패치)은 이
+"""experiments/delegation_overhead_bench.py — 실험10(N=1)을 N≥3로 재실행하기 위한 지표
+계산 로직. 실제 위임 실행(Agent 도구로 오케스트레이터 서브에이전트 N=3회 디스패치)은 이
 세션에서 직접 수행하고, 각 라운드의 (orchestrator_cost, content_cost, baseline_cost)를
 여기 넣어 집계한다 — 라이브 API 호출은 코드로 감싸지 않는다(레포 컨벤션: 위임은 Agent 도구,
 비용 계산은 measure.py).

@@ -308,6 +308,37 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
    statusLine과 어떻게 조합할지, 혹은 애초에 "사용자용"과 "어시스턴트용" 코칭을 분리해서
    설계할지 검토.
 
+## 실험13~17 — 라우팅 사다리 신뢰도 로드맵, 발견사항 4건 (2026-08-08, 11차)
+6개 태스크 로드맵(실험13~17 + 최종 브랜치 리뷰 픽스 웨이브)이 끝났다. 이번 픽스 웨이브에서
+직접 처리한 건(스캐너 과소집계, Hoeffding 처방 등)은 코드/PROTOCOL.md에 이미 반영됐고, 아래
+4건은 **이 라운드에서 처리하지 않고 남긴** 후속 스레드다 — 우선순위 순.
+
+1. **`measure.py`의 `capture_failures()` — production_failures.jsonl 141건 중 라벨링 가능한
+   18건 전부 위양성**(실험13). `<task-notification>` 시스템 텍스트를 "다음 user 메시지"로
+   오인해 매칭하는 단일 버그로 137/138건이 소급된다. 처방: "다음 user 메시지" 매칭에서
+   `origin.kind == "task-notification"`(또는 role:user이지만 시스템 주입인) 메시지를 제외하는
+   필터 추가가 최소 수정. `escalation_pair`도 `_similar_desc()`가 "정형 재검토 문구 반복"과
+   "실패 재위임"을 구분 못 하는 별도 결함이 있음(상세: `experiments/PROTOCOL.md` 실험13
+   처방 섹션).
+2. **`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
+   수치(총비용 기준)와 정의상 다름**(실험17 처방#3). 현재 `overhead_pct_of_content`·
+   `multiplier_vs_baseline`은 `orchestrator_cost`만으로 계산하는데, 실험10·17의 헤드라인
+   절감률은 `orchestrator_cost + content_cost`(총비용) 기준이다 — 지금 상태로는
+   `multiplier_vs_baseline`만 보면 절감폭이 실제보다 커 보이는 착시가 생긴다(실험17 round1:
+   함수값 3.45배 vs 총비용 실제 4.66배). docstring의 inclusive 가정과 실제 exclusive 사용도
+   불일치(이번 픽스 웨이브에서 문서화만 하고 코드는 안 건드림). 후속: 함수를 총비용 기준으로
+   재정의하거나 두 지표를 구분해 반환하도록 시그니처 변경.
+3. **겹침 재독 스캐너(`line_range_overlap_detection`) 재실행 결과에 따른 read_guard 구현 여부
+   결정**(이번 픽스 웨이브에서 스캐너 자체의 과소집계 버그는 고쳤고 재측정도 했다 — 최종
+   수치는 세션 25개, Read 109건 중 겹침 8건=7.34%, 5% 임계값을 넘어 실험16의 원 기각 결론이
+   뒤집혔다, `experiments/PROTOCOL.md` 실험16 참고). 남은 건 read_guard에 실제로 이 겹침
+   감지를 구현할지의 설계·구현 결정 자체 — 이번 라운드는 측정만 했고 구현은 미착수.
+4. **`verify_fails.py`의 이질적 judge — 실전 위음성 재현 없음**(실험14). 현재는 정정 대상이었던
+   위음성 후보 자체가 오라클 패치로 이미 사라진 상태라 부정 대조군(명백한 오답) 2건만 검증됨
+   (6/6 poll FAIL, 오라클과 합치). 실제 위음성 사례가 다시 나오면(오라클이 새 phrasing에
+   걸리면) 이 judge 경로를 재사용해 재검증할 것 — 지금은 "구조는 검증됐으나 실전 사례로 뒤집는
+   검증은 아직 없음" 상태.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
