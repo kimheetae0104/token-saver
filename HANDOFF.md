@@ -272,6 +272,18 @@ MCP 툴을 중복 호출 시도(Skill의 자기감지 지시 미준수) — Desk
 여전히 유효한 fallback — 문서(README/CLAUDE.md)는 이 정정을 반영해 갱신 완료.
 **후속 과제**: 자기감지 지시 신뢰도 개선(현재는 프롬프트 판단에만 의존) — 미착수.
 
+## PreToolUse read_guard 배포 + 100시나리오 탐색 (2026-08-08, 9차)
+이 플러그인 최초의 non-advisory hook 배포: `hooks/read_guard.py`(PreToolUse, matcher Read) —
+정확히 같은 범위 재독, 대형파일(500줄+) 스코프없는 재독을 mtime 게이트로 차단(Read→Edit→Read는
+항상 허용). 설계: `~/.claude/plans/vast-marinating-newt.md`. 정직한 기대치 5~15%(50%는 불가 —
+컨텍스트 미압축·위임 오버헤드는 hook으로 못 고침, 모델 다운그레이드는 실험7 근거로 기각).
+테스트 `tests/test_read_guard.py` 12/12. v0.3.0.
+
+이어서 Workflow로 100가지 절감 시나리오 생성→판정→백테스트 시도(실험12) — 판정(127건)은
+안전하게 완료·기록했으나, 백테스트가 무관 프로젝트 세션까지 스캔하는 범위 문제가 있어
+실측치는 이번 기록에서 제외(공개 repo 오염 방지). 후속: 이 프로젝트 자신의 세션만 대상으로
+재백테스트. 상세: `experiments/PROTOCOL.md` 실험12.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
