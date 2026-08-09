@@ -665,7 +665,7 @@ def print_all():
         return
     print(f"\n== 세션 간 추세 ==  ({len(files)} 세션, {cost_label()})")
     print(f"  {'세션':22} {'턴':>5} {'총토큰':>12} {'적중%':>6} {'효율':>5} {'비용':>10}")
-    tot_tokens = tot_cost = 0
+    tot_tokens = tot_cost = tot_cache_savings = tot_blocked = 0
     hits = []
     for p in files:
         sess = parse_session(p)
@@ -674,6 +674,8 @@ def print_all():
         sc = efficiency_score(tot, px)
         tot_tokens += tot["total_tokens"]
         tot_cost += tot["cost"]
+        tot_cache_savings += tot["cache_savings"]
+        tot_blocked += token_savings_for_session(session_id_from_path(p))
         hits.append(tot["cache_hit"])
         print(f"  {os.path.basename(p)[:22]:22} {tot['turns']:>5} "
               f"{fmt(tot['total_tokens']):>12} {tot['cache_hit']*100:>5.0f}% "
@@ -681,6 +683,8 @@ def print_all():
     avg_hit = sum(hits) / len(hits) if hits else 0
     print(f"  {'—합계/평균':22} {'':>5} {fmt(tot_tokens):>12} "
           f"{avg_hit*100:>5.0f}% {'':>5} {money(tot_cost):>10}")
+    print(f"  누적 캐시 절감: {money(tot_cache_savings)}   "
+          f"누적 차단·트림 절감(추정): ~{fmt(tot_blocked)}tok")
 
 
 def _coaching_warnings(tot, per_turn):

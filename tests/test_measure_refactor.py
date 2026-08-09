@@ -173,6 +173,39 @@ def test_do_statusline_cache_savings_matches_manual_calc():
         assert "캐시절감 $0.0108" in out, out
 
 
+def test_print_all_shows_cumulative_savings():
+    """--all(세션 간 추세)에 누적 캐시 절감·차단절감 합계가 노출된다 — 프로젝트 전체
+    '토큰 얼마나 아꼈어'에 답할 수 있는 유일한 합산 지점(세션별로만 있으면 사용자가
+    직접 더해야 함)."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as sessions_dir, tempfile.TemporaryDirectory() as plugin_data:
+        for name in ("a.jsonl", "b.jsonl"):
+            with open(os.path.join(sessions_dir, name), "w") as f:
+                f.write(FIXTURE)
+
+        old_dir = measure.TRANSCRIPT_DIR
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        buf = io.StringIO()
+        try:
+            measure.TRANSCRIPT_DIR = sessions_dir
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            with contextlib.redirect_stdout(buf):
+                measure.print_all()
+        finally:
+            measure.TRANSCRIPT_DIR = old_dir
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        out = buf.getvalue()
+        # FIXTURE 1건 캐시절감 $0.0108(test_do_statusline_cache_savings_matches_manual_calc와
+        # 동일 계산) × 2세션 = $0.0216. 차단절감 로그 없음 -> 0.
+        assert "누적 캐시 절감: $0.0216" in out, out
+        assert "누적 차단·트림 절감(추정): ~0tok" in out, out
+
+
 def test_autopsy_text_has_header():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "fake-session.jsonl")
