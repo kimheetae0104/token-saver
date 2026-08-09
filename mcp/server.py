@@ -44,13 +44,13 @@ def _resolve_transcript():
 
 
 def tool_check():
+    """statusline_text()(check_line()이 아님) 사용 — Desktop Code 탭은 statusLine hook도
+    안 뜨므로, 이 MCP 툴이 사람이 실제로 보는 유일한 경로다. check_line()은 어시스턴트
+    컨텍스트 전용 비가시 채널이라 캐시절감·차단절감 세그먼트가 빠져 있어 여기엔 안 맞는다."""
     path, err = _resolve_transcript()
     if err:
         return err
-    line = measure.check_line(path)
-    if line:
-        return line
-    return f"트랜스크립트는 찾았으나 집계 가능한 턴이 아직 없음 — {os.path.basename(path)}"
+    return measure.statusline_text(path)
 
 
 def tool_autopsy():

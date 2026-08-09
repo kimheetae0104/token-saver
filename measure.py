@@ -700,17 +700,13 @@ def _coaching_warnings(tot, per_turn):
     return warnings
 
 
-def do_statusline():
-    """stdin JSON(transcript_path 포함) → 한 줄. UserPromptSubmit hook과 달리 statusLine은
-    설치 즉시 사용자 화면에 실제로 뜨는 유일한 경로라, 경고도 여기 실어야 사용자가 본다."""
-    try:
-        payload = json.load(sys.stdin)
-    except Exception:
-        payload = {}
-    path = payload.get("transcript_path") or latest_session()
+def statusline_text(path):
+    """do_statusline()·MCP token_saver_check 공용 — 캐시절감·차단절감까지 포함한 완전한 한 줄.
+    check_line()(hook 전용, 어시스턴트 컨텍스트에만 들어가는 비가시 채널이라 절감 세그먼트
+    없이 간결하게 유지)과는 별개 포맷 — 이쪽은 실제 사람 눈에 보이는 두 경로(statusLine,
+    Desktop MCP) 전용이라 '체감'에 필요한 정보를 전부 싣는다."""
     if not path or not os.path.isfile(path):
-        print("token: n/a")
-        return
+        return "token: n/a"
     tot, per_turn = aggregate(parse_session(path))
     line = (f"⟢ {fmt(tot['total_tokens'])} tok · hit {tot['cache_hit']*100:.0f}% "
             f"· {money(tot['cost'])} · 캐시절감 {money(tot['cache_savings'])} · {tot['turns']}턴")
@@ -719,7 +715,18 @@ def do_statusline():
         line += f" · 차단절감 ~{fmt(blocked)}tok(추정)"
     if per_turn:
         line = " ".join([line] + _coaching_warnings(tot, per_turn))
-    print(line)
+    return line
+
+
+def do_statusline():
+    """stdin JSON(transcript_path 포함) → 한 줄. UserPromptSubmit hook과 달리 statusLine은
+    설치 즉시 사용자 화면에 실제로 뜨는 유일한 경로라, 경고도 여기 실어야 사용자가 본다."""
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        payload = {}
+    path = payload.get("transcript_path") or latest_session()
+    print(statusline_text(path))
 
 
 def check_line(path):

@@ -173,6 +173,31 @@ def test_do_statusline_cache_savings_matches_manual_calc():
         assert "캐시절감 $0.0108" in out, out
 
 
+def test_statusline_text_matches_do_statusline_output():
+    """MCP token_saver_check가 쓰는 statusline_text()가 do_statusline()의 print 내용과
+    정확히 일치 — Desktop Code 탭(hook 자체가 안 뜨는 환경)에서도 CLI/IDE statusLine과
+    동일한 정보(캐시절감·차단절감 포함)를 받는다는 걸 보장."""
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            direct = measure.statusline_text(path)
+        finally:
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        assert direct == "⟢ 7,230 tok · hit 96% · $0.0068 · 캐시절감 $0.0108 · 2턴", direct
+
+
+def test_statusline_text_missing_file_returns_na():
+    assert measure.statusline_text("/no/such/file.jsonl") == "token: n/a"
+    assert measure.statusline_text(None) == "token: n/a"
+
+
 def test_print_all_shows_cumulative_savings():
     """--all(세션 간 추세)에 누적 캐시 절감·차단절감 합계가 노출된다 — 프로젝트 전체
     '토큰 얼마나 아꼈어'에 답할 수 있는 유일한 합산 지점(세션별로만 있으면 사용자가
