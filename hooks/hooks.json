@@ -6,6 +6,11 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/read_guard.py\"" }
         ]
+      },
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt_gate.py\"" }
+        ]
       }
     ],
     "PostToolUse": [
