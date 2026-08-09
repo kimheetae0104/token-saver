@@ -15,10 +15,39 @@ fail-open: stdin 파싱 실패, tool_output 없음/문자열 아님 등 어떤 �
 import json
 import os
 import sys
+import tempfile
+import time
 
 MATCH_THRESHOLD = 100
 KEEP_HEAD = 30
 KEEP_TAIL = 10
+
+
+def savings_log_dir():
+    """read_guard.py와 동일한 규약(공유 모듈 없음 — hook은 각자 self-contained, 레포 기존
+    스타일). measure.py가 세션별 합산 시 이 경로와 정확히 일치해야 한다."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    d = os.path.join(data_dir, "token_savings") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-token-savings")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def estimate_tokens(text):
+    return max(1, len(text) // 4)
+
+
+def log_savings(session_id, source, estimated_tokens):
+    if not session_id:
+        return
+    try:
+        path = os.path.join(savings_log_dir(), f"{session_id}.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps({
+                "source": source, "estimated_tokens": estimated_tokens, "ts": time.time(),
+            }) + "\n")
+    except Exception:
+        pass
 
 # 문서상 필드명이 tool_output으로 확인됐으나, 실제 배선에서 다를 가능성에 대비해
 # 여러 후보를 순서대로 시도한다(방어적 — 하나도 안 맞으면 fail-open으로 원본 유지).
@@ -69,6 +98,9 @@ def main():
     tail = lines[-KEEP_TAIL:] if KEEP_TAIL else []
     omitted = total - len(head) - len(tail)
     note = f"... (중간 {omitted}건 생략, 전체 {total}건 매치 — 패턴을 좁히거나 파일 glob을 추가하세요) ..."
+    omitted_lines = lines[KEEP_HEAD: total - KEEP_TAIL if KEEP_TAIL else total]
+    log_savings(payload.get("session_id"), "grep_trim",
+                estimate_tokens("\n".join(omitted_lines)))
     trimmed = "\n".join(head + [note] + tail)
     return rewrite(trimmed)
 

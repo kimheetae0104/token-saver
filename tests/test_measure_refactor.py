@@ -80,25 +80,68 @@ def test_do_statusline_includes_same_warning():
 
 
 def test_do_statusline_no_warning_stays_clean():
-    """정상 범위 세션은 statusLine에 경고 없이 기존 포맷 그대로 — 회귀 방지."""
+    """정상 범위 세션은 statusLine에 경고 없이 기존 포맷 그대로 — 회귀 방지.
+    CLAUDE_PLUGIN_DATA를 빈 임시 디렉터리로 고정해 차단절감 로그가 없음을 보장(호스트
+    환경에 실제 plugin data가 남아있어도 이 테스트가 그걸 우연히 줍지 않도록)."""
     import io
     import contextlib
 
-    with tempfile.TemporaryDirectory() as d:
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
         path = os.path.join(d, "fake-session.jsonl")
         with open(path, "w") as f:
             f.write(FIXTURE)
         stdin_payload = json.dumps({"transcript_path": path})
         buf = io.StringIO()
         old_stdin = sys.stdin
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
         try:
             sys.stdin = io.StringIO(stdin_payload)
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
             with contextlib.redirect_stdout(buf):
                 measure.do_statusline()
         finally:
             sys.stdin = old_stdin
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
         out = buf.getvalue().strip()
         assert out == "⟢ 7,230 tok · hit 96% · $0.0068 · 캐시절감 $0.0108 · 2턴", out
+
+
+def test_do_statusline_shows_blocked_token_savings():
+    """read_guard·grep_trim이 남긴 세션별 절감 로그를 statusLine이 합산해 보여준다 —
+    '체감 가능한 절대 토큰 절감'(캐시 $와 별개 지표)."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        savings_dir = os.path.join(plugin_data, "token_savings")
+        os.makedirs(savings_dir)
+        with open(os.path.join(savings_dir, "fake-session.jsonl"), "w") as f:
+            f.write(json.dumps({"source": "read_guard_large", "estimated_tokens": 3000, "ts": 0}) + "\n")
+            f.write(json.dumps({"source": "grep_trim", "estimated_tokens": 500, "ts": 0}) + "\n")
+
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        out = buf.getvalue()
+        assert "차단절감 ~3,500tok(추정)" in out, out
 
 
 def test_do_statusline_cache_savings_matches_manual_calc():

@@ -25,6 +25,7 @@ import glob
 import math
 import argparse
 import re
+import tempfile
 
 # ── config (단가는 2026-08 공식 pricing 기준; 런타임 재확인 권장) ──
 # Claude Code는 프로젝트 경로의 비영숫자 문자를 '-'로 치환해 세션 디렉터리명을 만든다
@@ -204,6 +205,39 @@ def _flatten_user_text(content):
 def _read_lines(path):
     with open(path, "r", errors="replace") as f:
         return f.readlines()
+
+
+# ── 절대 토큰 절감(hooks/read_guard.py·hooks/grep_trim.py 로그 합산) ──
+def token_savings_log_dir():
+    """hooks/read_guard.py·hooks/grep_trim.py의 savings_log_dir()와 정확히 같은 경로 규약
+    (CLAUDE_PLUGIN_DATA 있으면 그 밑 token_savings/, 없으면 tempdir 공용 폴백) — 어긋나면
+    hook이 쓴 로그를 여기서 못 찾는다."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "token_savings") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-token-savings")
+
+
+def token_savings_for_session(session_id):
+    """세션별 절대 토큰 절감(추정) 합계 — 캐시 절감($, cache_savings)과는 다른 지표: 이건
+    캐시 적중 여부와 무관하게 애초에 컨텍스트에 안 들어간 토큰(차단된 재독·트림된 grep
+    매치)이다. 로그 없으면 0(정상 — 두 hook 다 발화 안 한 세션)."""
+    path = os.path.join(token_savings_log_dir(), f"{session_id or ''}.jsonl")
+    total = 0
+    if session_id and os.path.isfile(path):
+        with open(path, "r", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    total += json.loads(line).get("estimated_tokens", 0)
+                except Exception:
+                    continue
+    return total
+
+
+def session_id_from_path(path):
+    return os.path.splitext(os.path.basename(path))[0] if path else None
 
 
 # ── 집계 ──
@@ -569,7 +603,10 @@ def print_report(path):
     print(f"  토큰  input={fmt(tot['input'])}  cache_create={fmt(tot['cache_create'])}"
           f"  cache_read={fmt(tot['cache_read'])}  output={fmt(tot['output'])}")
     print(f"  총 토큰: {fmt(tot['total_tokens'])}   캐시 적중률: {tot['cache_hit']*100:.0f}%")
-    print(f"  {cost_label()}: {money(tot['cost'])}")
+    print(f"  {cost_label()}: {money(tot['cost'])}   캐시 절감: {money(tot['cache_savings'])}")
+    blocked = token_savings_for_session(session_id_from_path(path))
+    print(f"  차단·트림으로 애초에 컨텍스트에 안 들어간 토큰(추정): ~{fmt(blocked)}tok"
+          f"  [read_guard 재독 차단 + grep_trim 트림 합산]")
     print(f"  프록시  병렬={px['parallelism']*100:.0f}%  read_thrash={px['read_thrash']*100:.0f}%"
           f"  correction={px['correction']*100:.0f}%  clarify={px['clarify']}"
           f"  verbosity={px['verbosity']:.0f}/턴  agents={px['n_agent_spawns']}")
@@ -673,6 +710,9 @@ def do_statusline():
     tot, per_turn = aggregate(parse_session(path))
     line = (f"⟢ {fmt(tot['total_tokens'])} tok · hit {tot['cache_hit']*100:.0f}% "
             f"· {money(tot['cost'])} · 캐시절감 {money(tot['cache_savings'])} · {tot['turns']}턴")
+    blocked = token_savings_for_session(session_id_from_path(path))
+    if blocked:
+        line += f" · 차단절감 ~{fmt(blocked)}tok(추정)"
     if per_turn:
         line = " ".join([line] + _coaching_warnings(tot, per_turn))
     print(line)

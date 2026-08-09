@@ -148,6 +148,35 @@ def test_non_read_tool_is_noop():
         assert resp is None
 
 
+def test_blocked_exact_reread_logs_estimated_tokens_saved():
+    """차단된 재독의 추정 토큰 수를 세션별 절감 로그에 남긴다 — measure.py 합산 대상."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "small.txt", 10)
+        _call({"file_path": f, "offset": 1, "limit": 5}, session_id="sess-log", data_dir=data_dir)
+        _call({"file_path": f, "offset": 1, "limit": 5}, session_id="sess-log", data_dir=data_dir)
+        log_path = os.path.join(data_dir, "token_savings", "sess-log.jsonl")
+        assert os.path.isfile(log_path), log_path
+        with open(log_path) as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        assert len(records) == 1, records
+        assert records[0]["source"] == "read_guard_exact"
+        assert records[0]["estimated_tokens"] > 0
+
+
+def test_blocked_large_file_reread_logs_estimated_tokens_saved():
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "large.txt", 600)
+        _call({"file_path": f, "offset": 0, "limit": 50}, session_id="sess-log2", data_dir=data_dir)
+        _call({"file_path": f}, session_id="sess-log2", data_dir=data_dir)  # 스코프 없는 재독
+        log_path = os.path.join(data_dir, "token_savings", "sess-log2.jsonl")
+        assert os.path.isfile(log_path), log_path
+        with open(log_path) as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        assert len(records) == 1, records
+        assert records[0]["source"] == "read_guard_large"
+        assert records[0]["estimated_tokens"] > 0
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

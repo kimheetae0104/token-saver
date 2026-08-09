@@ -44,6 +44,49 @@ def state_path(session_id):
     return os.path.join(state_dir(), f"{session_id}.jsonl")
 
 
+def savings_log_dir():
+    """차단·트림 hook들이 공유하는 '절대 토큰 절감(추정)' 로그 디렉터리. measure.py가 세션별로
+    합산해 statusline/리포트에 노출한다(캐시 절감 $와는 다른 지표 — 이건 캐시 미스여도 애초에
+    컨텍스트에 안 들어간 토큰 자체)."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    d = os.path.join(data_dir, "token_savings") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-token-savings")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def estimate_tokens(text):
+    """대략적 토큰 추정치(~4 chars/token, 업계 통용 근사). 청구서상 정확한 토큰 수가 아니라
+    '차단되지 않았다면 컨텍스트에 들어갔을 크기'의 근사값 — 리포트에 항상 '추정'으로 표기."""
+    return max(1, len(text) // 4)
+
+
+def log_savings(session_id, source, estimated_tokens):
+    try:
+        path = os.path.join(savings_log_dir(), f"{session_id}.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps({
+                "source": source, "estimated_tokens": estimated_tokens, "ts": time.time(),
+            }) + "\n")
+    except Exception:
+        pass
+
+
+def _slice_for_estimate(file_path, offset, limit):
+    """Read 툴과 동일한 offset(1-index)/limit 의미로 파일을 슬라이스해, 차단된 재독이
+    실제로 읽었을 텍스트 크기를 추정한다. 실패 시 빈 문자열(fail-open, 추정 0)."""
+    try:
+        with open(file_path, "r", errors="replace") as f:
+            lines = f.readlines()
+    except Exception:
+        return ""
+    if offset is None and limit is None:
+        return "".join(lines)
+    start = max(0, (offset or 1) - 1)
+    end = start + limit if limit else len(lines)
+    return "".join(lines[start:end])
+
+
 def _cleanup_old(d):
     try:
         now = time.time()
@@ -138,6 +181,8 @@ def main():
 
     # 체크1: 정확히 같은 범위 재독
     if exact_map.get(key) == current_mtime:
+        log_savings(session_id, "read_guard_exact",
+                    estimate_tokens(_slice_for_estimate(file_path, offset, limit)))
         return deny(
             f"이미 이 세션에서 정확히 같은 범위를 읽었습니다: {file_path} "
             f"(offset={offset}, limit={limit}), 그 이후 파일도 변경되지 않았습니다. "
@@ -149,10 +194,13 @@ def main():
     if offset is None and limit is None and file_map.get(file_path) == current_mtime:
         try:
             with open(file_path, "r", errors="replace") as f:
-                n_lines = sum(1 for _ in f)
+                full_text = f.read()
+            n_lines = full_text.count("\n") + (1 if full_text and not full_text.endswith("\n") else 0)
         except Exception:
             n_lines = 0
+            full_text = ""
         if n_lines > LARGE_FILE_LINES:
+            log_savings(session_id, "read_guard_large", estimate_tokens(full_text))
             return deny(
                 f"{file_path}은 {n_lines}줄로 임계값({LARGE_FILE_LINES}줄)을 넘고, "
                 "이 세션에서 이미 읽은 적이 있으며 그 이후 변경되지 않았습니다. "
