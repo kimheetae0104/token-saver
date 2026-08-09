@@ -26,6 +26,7 @@ import math
 import argparse
 import re
 import tempfile
+import datetime
 
 # ── config (단가는 2026-08 공식 pricing 기준; 런타임 재확인 권장) ──
 # Claude Code는 프로젝트 경로의 비영숫자 문자를 '-'로 치환해 세션 디렉터리명을 만든다
@@ -260,7 +261,8 @@ def aggregate(sess):
         b = base_price(a["model"]) / 1e6
         tot["cache_savings"] += u.get("cache_read_input_tokens", 0) * b * 0.9
         per_turn.append({"total_input": total_input(u),
-                         "output": u.get("output_tokens", 0), "cost": c})
+                         "output": u.get("output_tokens", 0), "cost": c,
+                         "ts": a.get("ts")})
     tot["turns"] = len(A)
     tot["total_tokens"] = tot["input"] + tot["cache_create"] + tot["cache_read"] + tot["output"]
     denom = tot["cache_read"] + tot["cache_create"]
@@ -687,16 +689,44 @@ def print_all():
           f"누적 차단·트림 절감(추정): ~{fmt(tot_blocked)}tok")
 
 
+def _pace_line(per_turn):
+    """실측 시간당 소비 속도 — 계정의 실제 5시간/주간 한도는 서버 쪽 상태라 로컬에서 절대 알
+    수 없다(HANDOFF.md 12차 후속: policy-limits.json엔 quota 없음, CLI에도 usage 조회 커맨드
+    없음 확인됨). 하지만 "이 세션이 지금까지 실제로 얼마나 빨리 토큰을 쓰고 있는지"는 transcript
+    타임스탬프로 정확히 계산 가능한 실측값이다. 잔여 한도%처럼 지어낸 수치를 보여주는 대신,
+    관측된 페이스를 그대로 보여줘서 사용자가 스스로 조절하게 하는 것이 목적 — THRESH처럼 발화
+    임계값을 보정한 게 아니라 항상 뜨는 정보성 라인(경고 아님)."""
+    stamped = [t for t in per_turn if t.get("ts")]
+    if len(stamped) < 2:
+        return None
+    try:
+        t0 = datetime.datetime.fromisoformat(stamped[0]["ts"].replace("Z", "+00:00"))
+        t1 = datetime.datetime.fromisoformat(stamped[-1]["ts"].replace("Z", "+00:00"))
+    except Exception:
+        return None
+    elapsed_h = (t1 - t0).total_seconds() / 3600
+    if elapsed_h < 0.05:  # 3분 미만은 속도 추정이 노이즈에 지배됨 — 표시 안 함
+        return None
+    total = sum(t["total_input"] + t["output"] for t in stamped)
+    rate = int(total / elapsed_h)
+    if elapsed_h >= 5:
+        return f"⏱️ 세션 경과 {elapsed_h:.1f}시간(5시간 초과) · 페이스 {fmt(rate)}tok/h"
+    return f"⏱️ 페이스 {fmt(rate)}tok/h(이 속도로 5시간 채우면 ~{fmt(rate * 5)}tok, 실측 기반 추정)"
+
+
 def _coaching_warnings(tot, per_turn):
-    """컨텍스트 비대·캐시 적중 저하 경고 목록(둘 다 없으면 []). check_line()·do_statusline()
+    """컨텍스트 비대·캐시 적중 저하 경고 목록 + 페이스 정보 라인. check_line()·do_statusline()
     공용 — statusLine이 hook보다 사용자에게 실제로 보이는 유일한 경로이므로(HANDOFF.md 10차
-    근본 설계 오류 참고), 같은 경고를 두 채널 모두에 실어야 사용자가 실제로 볼 수 있다."""
+    근본 설계 오류 참고), 같은 내용을 두 채널 모두에 실어야 사용자가 실제로 볼 수 있다."""
     warnings = []
     last = per_turn[-1]["total_input"]
     if last > THRESH["sunk_input"]:
         warnings.append(f"⚠️ 컨텍스트 {last:,} 토큰 — 작업 경계면 /compact, 무관 작업이면 /clear 권장")
     if tot["cache_hit"] < THRESH["cache_hit_low"] and tot["turns"] > 6:
         warnings.append(f"⚠️ 캐시 적중률 {tot['cache_hit']*100:.0f}% — 모델·effort 전환 자제")
+    pace = _pace_line(per_turn)
+    if pace:
+        warnings.append(pace)
     return warnings
 
 

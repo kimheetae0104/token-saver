@@ -387,6 +387,46 @@ line_threshold/keep_head/keep_tail)과 kill switch가 지금까지 소스 코드
   안 건드림 — 그건 리서치 캘리브레이션 값이라 DIY 대상이 아니라고 판단, 이번 스코프는
   read_guard/grep_trim/bash_trim 3개 hook의 트림/차단 동작으로 한정(사용자 확인 하에 선택).
 
+## 배포 갭 발견·수정 — "로컬 커밋 ≠ 실제 적용" (2026-08-09, 13차)
+사용자가 "토큰 얼마나 절약돼"에 실측 응답하자 절대 절감 로그가 기기 전체에서 0으로 나옴 →
+`--autopsy`로 라이브 세션 재확인하니 중복 Read 78%가 안 걸리고 있었음(`read_guard.py`
+자체가 비활성). 근본원인 추적 결과 **이 repo의 근본 가정("로컬 main에 커밋 = 배포됨")이
+틀렸음**이 드러남:
+- Claude Code 마켓플레이스 플러그인은 GitHub 원격에서 버전 고정 스냅샷으로 캐시됨
+  (`~/.claude/plugins/cache/token-saver-tools/token-saver/<version>/`) — 로컬 미푸시 커밋은
+  아무리 쌓여도 설치된 플러그인에 절대 반영 안 됨. 이 세션 시작 시점 origin 대비 26커밋 밀려
+  있었던 게 원인 — `bash_trim.py`·`config_store.py` 등 최근 기능 전부 설치본에 없었음.
+- **2차 함정**: `git push`만으로는 안 끝남 — `.claude-plugin/plugin.json`의 `"version"`을
+  올리지 않으면 `claude plugin update`가 "이미 최신"이라며 새 커밋을 무시함(버전 문자열이
+  캐시 키). `54e9cfa`(DIY 설정 기능)를 푸시하고도 이 함정에 한 번 더 걸림 → `0.3.1`→`0.3.2`
+  버전범프 커밋을 별도로 또 푸시하고 나서야 캐시 갱신 확인(`hooks.json`에 Read/Grep/Bash
+  매처 3개 다 있는지 직접 확인).
+- **교훈(향후 모든 hook/plugin 변경에 적용)**: hook·MCP 코드를 고치면 "커밋함"에서 끝내지
+  말고 (1) `git push`, (2) `plugin.json` version 범프, (3) `claude plugin marketplace update
+  token-saver-tools`, (4) `claude plugin update token-saver@token-saver-tools`, (5) 캐시
+  디렉터리에서 실제 파일 존재 확인, (6) 사용자에게 **재시작 필요** 안내까지 마쳐야 "완료"다.
+  테스트 그린 ≠ 실사용 반영 — 이번 세션 전까지 이 프로젝트의 고급 hook들은 여러 세션에 걸쳐
+  실사용자 환경에서 한 번도 안 켜져 있었다(0 실측 절감이 증거).
+
+## 실측 기반 페이스 라인 — 5시간/주간 한도 (2026-08-09, 13차 후속)
+"주간 사용량·5시간 제한 안에서 최대한 쓰게 해줘" 요청 조사 결과: **계정 단위 실제 잔여
+한도(5시간 롤링 윈도우, 주간 캡)는 서버 쪽 상태라 로컬에서 절대 조회 불가**
+(`~/.claude/policy-limits.json`엔 quota 없음 확인, `claude` CLI에도 usage 조회 서브커맨드
+없음 확인) — 여기에 "몇 % 남았다" 게이지를 만들면 지어낸 값이라 북극성 위반. 대신 실제로
+관측 가능한 것: 이 세션이 지금까지 실측으로 얼마나 빨리 토큰을 쓰고 있는가. `measure.py`에
+`_pace_line()` 추가 — transcript의 실제 타임스탬프로 시간당 소비 속도를 계산해
+`_coaching_warnings()`(check_line·do_statusline 공용, 사용자 화면에 실제로 뜨는 경로)에 상시
+노출:
+- 경과 3분 미만은 표시 안 함(속도 추정이 노이즈에 지배됨).
+- 5시간 미만 경과: `⏱️ 페이스 Ntok/h(이 속도로 5시간 채우면 ~Mtok, 실측 기반 추정)` — 관측된
+  속도의 단순 선형 추정, 잔여 한도가 아니라 "지금 이 페이스가 어느 정도 규모인지"를 사용자가
+  스스로 판단하게 하는 정보성 라인(THRESH처럼 보정된 발화 임계값이 아니라 항상 뜸).
+- 5시간 이상 경과: `⏱️ 세션 경과 N.N시간(5시간 초과) · 페이스 Ntok/h`로 전환.
+- 신규 테스트 4개(`tests/test_measure_refactor.py`) — 경과 짧을 때 억제, 5시간 미만 투영
+  산수, 5시간 초과 전환, `_coaching_warnings()` 통합. 전체 106/106 통과.
+- 실측 검증: 이 세션 자체(`measure.py --check`)에서 `⏱️ 세션 경과 7.5시간(5시간 초과) ·
+  페이스 23,783,710tok/h` 출력 확인 — 지어낸 예시가 아니라 실제 라이브 계산값.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).

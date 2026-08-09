@@ -198,6 +198,49 @@ def test_statusline_text_missing_file_returns_na():
     assert measure.statusline_text(None) == "token: n/a"
 
 
+def test_pace_line_none_when_elapsed_too_short():
+    """3분 미만 경과는 속도 추정이 노이즈에 지배되므로 표시 안 함(실측 신뢰 못하는 값 억제)."""
+    per_turn = [
+        {"total_input": 100, "output": 50, "ts": "2026-08-05T00:00:00Z"},
+        {"total_input": 100, "output": 50, "ts": "2026-08-05T00:00:30Z"},
+    ]
+    assert measure._pace_line(per_turn) is None
+
+
+def test_pace_line_projects_under_5h():
+    """5시간 미만 경과 시 실측 페이스로 5시간째 예상 누적량을 계산 — 지어낸 잔여 한도%가
+    아니라 관측된 속도의 단순 선형 추정(HANDOFF.md 12차 후속: 계정 quota는 로컬에서 알 수
+    없다는 제약을 그대로 반영한 대안 지표)."""
+    per_turn = [
+        {"total_input": 5000, "output": 5000, "ts": "2026-08-05T00:00:00Z"},
+        {"total_input": 5000, "output": 5000, "ts": "2026-08-05T01:00:00Z"},
+    ]
+    # 총 20,000tok / 1시간 경과 = 20,000tok/h, 5시간 유지 시 100,000tok
+    line = measure._pace_line(per_turn)
+    assert "20,000tok/h" in line, line
+    assert "100,000tok" in line, line
+
+
+def test_pace_line_flags_over_5h():
+    per_turn = [
+        {"total_input": 1000, "output": 0, "ts": "2026-08-05T00:00:00Z"},
+        {"total_input": 1000, "output": 0, "ts": "2026-08-05T06:00:00Z"},
+    ]
+    line = measure._pace_line(per_turn)
+    assert "5시간 초과" in line, line
+    assert "6.0시간" in line, line
+
+
+def test_pace_line_included_in_coaching_warnings():
+    per_turn = [
+        {"total_input": 5000, "output": 5000, "ts": "2026-08-05T00:00:00Z"},
+        {"total_input": 5000, "output": 5000, "ts": "2026-08-05T01:00:00Z"},
+    ]
+    tot = {"cache_hit": 1.0, "turns": 2}
+    warnings = measure._coaching_warnings(tot, per_turn)
+    assert any("페이스" in w for w in warnings), warnings
+
+
 def test_print_all_shows_cumulative_savings():
     """--all(세션 간 추세)에 누적 캐시 절감·차단절감 합계가 노출된다 — 프로젝트 전체
     '토큰 얼마나 아꼈어'에 답할 수 있는 유일한 합산 지점(세션별로만 있으면 사용자가
