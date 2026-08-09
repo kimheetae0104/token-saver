@@ -316,9 +316,13 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
 1. ~~**`measure.py`의 `capture_failures()` — 시스템 `<task-notification>` 텍스트를 사용자
    발화로 오인**~~ **완료(2026-08-09, 커밋 `b3cb163`)**: `user_msgs`에서
    `<task-notification>`으로 시작하는 메시지를 제외하는 필터 추가, 회귀테스트 2개(오탐 억제
-   + 정탐 유지) 추가, 33/33 통과. `escalation_pair`의 `_similar_desc()`가 "정형 재검토 문구
-   반복"과 "실패 재위임"을 구분 못 하는 별도 결함은 **미해결**로 남음(상세:
-   `experiments/PROTOCOL.md` 실험13 처방 섹션) — 다음 후보.
+   + 정탐 유지) 추가, 33/33 통과.
+   ~~**`escalation_pair`의 `_similar_desc()` — 재검토 정형문구 오탐**~~ **완료(2026-08-09,
+   커밋 `8ddf98f`)**: 재검토 템플릿 단어(re/review/fix/round/wave/final)를 `_DESC_STOPWORDS`에
+   추가 + 자카드 임계값 0.5→0.7 상향, 회귀테스트 3개 추가, 35/35 통과. 처방(2)("다음 haiku
+   시작 전까지"로 매칭 폭 좁히기)는 **미착수**로 남음 — task-notification 필터로 137건 중
+   137건이 이미 걸러졌지만, 진짜 사용자 발화가 여러 haiku에 중복매칭되는 잔여 리스크는 여전히
+   있음(실측 사례 없음, 다음 후보).
 2. **`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
    수치(총비용 기준)와 정의상 다름**(실험17 처방#3). 현재 `overhead_pct_of_content`·
    `multiplier_vs_baseline`은 `orchestrator_cost`만으로 계산하는데, 실험10·17의 헤드라인
