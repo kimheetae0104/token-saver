@@ -91,6 +91,7 @@ PRODUCTION_LOG = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "experiments", "production_failures.jsonl")
 _DESC_STOPWORDS = {
     "haiku", "sonnet", "opus", "fable", "task", "the", "a", "an", "and", "for", "to", "of", "in",
+    "re", "review", "fix", "round", "wave", "final",
 }
 
 LAMBDA_OCK = 10.0    # OckScore 로그 페널티 계수
@@ -450,7 +451,7 @@ def _similar_desc(a, b):
     ta, tb = _desc_tokens(a), _desc_tokens(b)
     if not ta or not tb:
         return False
-    return len(ta & tb) / len(ta | tb) >= 0.5
+    return len(ta & tb) / len(ta | tb) >= 0.7
 
 
 def _subagent_records(main_path):

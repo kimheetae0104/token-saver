@@ -164,6 +164,43 @@ def test_capture_failures_still_detects_real_user_corrections():
         assert "대신" in candidates[0]["user_text_snippet"] or "다른" in candidates[0]["user_text_snippet"]
 
 
+def test_similar_desc_filters_re_review_templates():
+    """실험13 위양성 사례 2건 — 재검토 정형 문구가 반복되는 워크플로우에서 오탐 방지.
+    수정 전: self-describing 단어(re, review, fix)만 겹쳐서 자카드 0.5+ 오탐
+    수정 후: 이들 단어를 stopword로 필터링 + 임계값 0.7 상향으로 False."""
+    # 케이스 1: 실험13에서 실제로 확인된 false positive
+    desc1_a = "Re-review Task 1 fix round 1"
+    desc1_b = "Re-review final review fix wave"
+    result1 = measure._similar_desc(desc1_a, desc1_b)
+    assert result1 is False, (
+        f"expected False for '{desc1_a}' vs '{desc1_b}' (실험13 위양성 사례 1), "
+        f"got {result1}"
+    )
+
+    # 케이스 2: 같은 false positive 패턴의 다른 예시
+    desc2_a = "Re-review Task 3 fix round 1"
+    desc2_b = "Re-review final review fix wave"
+    result2 = measure._similar_desc(desc2_a, desc2_b)
+    assert result2 is False, (
+        f"expected False for '{desc2_a}' vs '{desc2_b}' (실험13 위양성 사례 2), "
+        f"got {result2}"
+    )
+
+
+def test_similar_desc_still_detects_true_escalations():
+    """과잉수정 방지: 진짜로 관련 있는 설명들(구체적 내용어가 겹치는 경우)은 여전히 True로 판정."""
+    # 케이스: 로그인 관련 버그 수정과 그 재시도 — "login"·"parsing" 같은 도메인 단어가 겹침
+    desc_a = "로그인 파싱 버그 수정"
+    desc_b = "로그인 파싱 버그 수정 재시도"
+    result = measure._similar_desc(desc_a, desc_b)
+    # 교집합: {로그인, 파싱, 버그, 수정}, 합집합: {로그인, 파싱, 버그, 수정, 재시도} (5개)
+    # 자카드 = 4/5 = 0.8 >= 0.7 → True 기대
+    assert result is True, (
+        f"expected True for related descriptions '{desc_a}' vs '{desc_b}', "
+        f"got {result}"
+    )
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0
