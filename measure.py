@@ -640,8 +640,22 @@ def print_all():
           f"{avg_hit*100:>5.0f}% {'':>5} {money(tot_cost):>10}")
 
 
+def _coaching_warnings(tot, per_turn):
+    """컨텍스트 비대·캐시 적중 저하 경고 목록(둘 다 없으면 []). check_line()·do_statusline()
+    공용 — statusLine이 hook보다 사용자에게 실제로 보이는 유일한 경로이므로(HANDOFF.md 10차
+    근본 설계 오류 참고), 같은 경고를 두 채널 모두에 실어야 사용자가 실제로 볼 수 있다."""
+    warnings = []
+    last = per_turn[-1]["total_input"]
+    if last > THRESH["sunk_input"]:
+        warnings.append(f"⚠️ 컨텍스트 {last:,} 토큰 — 작업 경계면 /compact, 무관 작업이면 /clear 권장")
+    if tot["cache_hit"] < THRESH["cache_hit_low"] and tot["turns"] > 6:
+        warnings.append(f"⚠️ 캐시 적중률 {tot['cache_hit']*100:.0f}% — 모델·effort 전환 자제")
+    return warnings
+
+
 def do_statusline():
-    """stdin JSON(transcript_path 포함) → 한 줄."""
+    """stdin JSON(transcript_path 포함) → 한 줄. UserPromptSubmit hook과 달리 statusLine은
+    설치 즉시 사용자 화면에 실제로 뜨는 유일한 경로라, 경고도 여기 실어야 사용자가 본다."""
     try:
         payload = json.load(sys.stdin)
     except Exception:
@@ -651,12 +665,18 @@ def do_statusline():
         print("token: n/a")
         return
     tot, per_turn = aggregate(parse_session(path))
-    print(f"⟢ {fmt(tot['total_tokens'])} tok · hit {tot['cache_hit']*100:.0f}% "
-          f"· {money(tot['cost'])} · {tot['turns']}턴")
+    line = (f"⟢ {fmt(tot['total_tokens'])} tok · hit {tot['cache_hit']*100:.0f}% "
+            f"· {money(tot['cost'])} · {tot['turns']}턴")
+    if per_turn:
+        line = " ".join([line] + _coaching_warnings(tot, per_turn))
+    print(line)
 
 
 def check_line(path):
-    """세션 효율 한 줄(+조건부 경고) 문자열. 없으면 "". do_check()·MCP 서버 공용."""
+    """세션 효율 한 줄(+조건부 경고) 문자열. 없으면 "". do_check()·MCP 서버 공용.
+    이 출력은 UserPromptSubmit hook stdout이라 시스템 리마인더로 감싸져 어시스턴트
+    컨텍스트에만 들어가고 사용자 화면에는 뜨지 않는다(공식 문서 확인, HANDOFF.md 10차) —
+    사용자에게 실제로 보이는 경고는 do_statusline()의 _coaching_warnings() 몫."""
     if not path or not os.path.isfile(path):
         return ""
     sess = parse_session(path)
@@ -667,11 +687,7 @@ def check_line(path):
     score = efficiency_score(tot, px)
     msgs = [f"⟢ 턴{tot['turns']} · {fmt(tot['total_tokens'])}tok · "
             f"hit {tot['cache_hit']*100:.0f}% · {money(tot['cost'])} · 효율{score:.0f}"]
-    last = per_turn[-1]["total_input"]
-    if last > THRESH["sunk_input"]:
-        msgs.append(f"⚠️ 컨텍스트 {last:,} 토큰 — 작업 경계면 /compact, 무관 작업이면 /clear 권장")
-    if tot["cache_hit"] < THRESH["cache_hit_low"] and tot["turns"] > 6:
-        msgs.append(f"⚠️ 캐시 적중률 {tot['cache_hit']*100:.0f}% — 모델·effort 전환 자제")
+    msgs.extend(_coaching_warnings(tot, per_turn))
     return " ".join(msgs)
 
 

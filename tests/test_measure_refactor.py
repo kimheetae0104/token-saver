@@ -39,6 +39,68 @@ def test_check_line_missing_file_returns_empty():
     assert measure.check_line(None) == ""
 
 
+LARGE_INPUT_FIXTURE = """\
+{"message": {"role": "user", "content": "hello"}, "timestamp": "2026-08-05T00:00:00Z"}
+{"message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}], "usage": {"input_tokens": 150000, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 300}, "model": "claude-sonnet-5-20260101"}, "timestamp": "2026-08-05T00:00:01Z"}
+"""
+
+
+def test_check_line_includes_context_warning():
+    """HANDOFF.md 10차: hook stdout(check_line)은 사용자 화면에 안 뜨지만, 그래도 어시스턴트
+    컨텍스트에는 경고가 실려야 한다 — sunk_input 임계값(120,000) 초과 시 ⚠️ 문구 포함 확인."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(LARGE_INPUT_FIXTURE)
+        line = measure.check_line(path)
+        assert "⚠️ 컨텍스트" in line, line
+
+
+def test_do_statusline_includes_same_warning():
+    """statusLine은 hook과 달리 사용자 화면에 실제로 뜨는 유일한 경로(HANDOFF.md 10차) —
+    check_line()과 동일한 경고가 do_statusline() 출력에도 실려야 사용자가 실제로 볼 수 있다."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(LARGE_INPUT_FIXTURE)
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+        out = buf.getvalue()
+        assert "⚠️ 컨텍스트" in out, out
+
+
+def test_do_statusline_no_warning_stays_clean():
+    """정상 범위 세션은 statusLine에 경고 없이 기존 포맷 그대로 — 회귀 방지."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+        out = buf.getvalue().strip()
+        assert out == "⟢ 7,230 tok · hit 96% · $0.0068 · 2턴", out
+
+
 def test_autopsy_text_has_header():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "fake-session.jsonl")
