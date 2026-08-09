@@ -313,13 +313,12 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
 직접 처리한 건(스캐너 과소집계, Hoeffding 처방 등)은 코드/PROTOCOL.md에 이미 반영됐고, 아래
 4건은 **이 라운드에서 처리하지 않고 남긴** 후속 스레드다 — 우선순위 순.
 
-1. **`measure.py`의 `capture_failures()` — production_failures.jsonl 141건 중 라벨링 가능한
-   18건 전부 위양성**(실험13). `<task-notification>` 시스템 텍스트를 "다음 user 메시지"로
-   오인해 매칭하는 단일 버그로 137/138건이 소급된다. 처방: "다음 user 메시지" 매칭에서
-   `origin.kind == "task-notification"`(또는 role:user이지만 시스템 주입인) 메시지를 제외하는
-   필터 추가가 최소 수정. `escalation_pair`도 `_similar_desc()`가 "정형 재검토 문구 반복"과
-   "실패 재위임"을 구분 못 하는 별도 결함이 있음(상세: `experiments/PROTOCOL.md` 실험13
-   처방 섹션).
+1. ~~**`measure.py`의 `capture_failures()` — 시스템 `<task-notification>` 텍스트를 사용자
+   발화로 오인**~~ **완료(2026-08-09, 커밋 `b3cb163`)**: `user_msgs`에서
+   `<task-notification>`으로 시작하는 메시지를 제외하는 필터 추가, 회귀테스트 2개(오탐 억제
+   + 정탐 유지) 추가, 33/33 통과. `escalation_pair`의 `_similar_desc()`가 "정형 재검토 문구
+   반복"과 "실패 재위임"을 구분 못 하는 별도 결함은 **미해결**로 남음(상세:
+   `experiments/PROTOCOL.md` 실험13 처방 섹션) — 다음 후보.
 2. **`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
    수치(총비용 기준)와 정의상 다름**(실험17 처방#3). 현재 `overhead_pct_of_content`·
    `multiplier_vs_baseline`은 `orchestrator_cost`만으로 계산하는데, 실험10·17의 헤드라인
