@@ -98,7 +98,36 @@ def test_do_statusline_no_warning_stays_clean():
         finally:
             sys.stdin = old_stdin
         out = buf.getvalue().strip()
-        assert out == "⟢ 7,230 tok · hit 96% · $0.0068 · 2턴", out
+        assert out == "⟢ 7,230 tok · hit 96% · $0.0068 · 캐시절감 $0.0108 · 2턴", out
+
+
+def test_do_statusline_cache_savings_matches_manual_calc():
+    """캐시 절감액 = cache_read_tokens × 단가 × (1 − 0.1)(캐시 미스 대비 실제 아낀 비용).
+    FIXTURE: sonnet(단가 $2/MTok) 기준 cache_read 1000+5000=6000 → 6000×2e-6×0.9 = $0.0108.
+    측정 실패 시 회귀를 놓치므로 포맷 문자열이 아니라 수치를 직접 재계산해 대조한다."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        tot, _ = measure.aggregate(measure.parse_session(path))
+        b = measure.base_price("claude-sonnet-5-20260101") / 1e6
+        expected = 6000 * b * 0.9
+        assert abs(tot["cache_savings"] - expected) < 1e-9, tot["cache_savings"]
+
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+        out = buf.getvalue()
+        assert "캐시절감 $0.0108" in out, out
 
 
 def test_autopsy_text_has_header():

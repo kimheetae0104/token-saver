@@ -209,7 +209,8 @@ def _read_lines(path):
 # ── 집계 ──
 def aggregate(sess):
     A = sess["assistants"]
-    tot = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 0, "cost": 0.0}
+    tot = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 0, "cost": 0.0,
+           "cache_savings": 0.0}
     per_turn = []
     for a in A:
         u = a["usage"]
@@ -219,6 +220,11 @@ def aggregate(sess):
         tot["output"] += u.get("output_tokens", 0)
         c = record_cost(u, a["model"])
         tot["cost"] += c
+        # 캐시 절감액: cache_read 토큰이 캐시 미스였다면(=fresh input 단가) 들었을 비용 대비
+        # 실제로 낸 비용(0.1x)의 차액 = read_tokens × b × (1 - 0.1). 실측 usage 그대로 재계산한
+        # 값이라 지어낸 수치 아님(CLAUDE.md 북극성).
+        b = base_price(a["model"]) / 1e6
+        tot["cache_savings"] += u.get("cache_read_input_tokens", 0) * b * 0.9
         per_turn.append({"total_input": total_input(u),
                          "output": u.get("output_tokens", 0), "cost": c})
     tot["turns"] = len(A)
@@ -666,7 +672,7 @@ def do_statusline():
         return
     tot, per_turn = aggregate(parse_session(path))
     line = (f"⟢ {fmt(tot['total_tokens'])} tok · hit {tot['cache_hit']*100:.0f}% "
-            f"· {money(tot['cost'])} · {tot['turns']}턴")
+            f"· {money(tot['cost'])} · 캐시절감 {money(tot['cache_savings'])} · {tot['turns']}턴")
     if per_turn:
         line = " ".join([line] + _coaching_warnings(tot, per_turn))
     print(line)
