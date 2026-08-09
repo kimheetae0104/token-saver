@@ -1,7 +1,7 @@
 {
   "name": "token-saver",
-  "description": "Model-tier routing ladder (Haiku -> verify -> escalate) + waste-detection coaching hooks for Claude Code, a Skill+MCP fallback for Claude Desktop's Code tab, a deterministic PreToolUse guard against duplicate/oversized rereads, and a PostToolUse trimmer for oversized Grep output. Measured savings only (own harness cost model), no vendor claims. Early stage: v0.x, calibrated on N=6 sessions.",
-  "version": "0.3.1",
+  "description": "Model-tier routing ladder (Haiku -> verify -> escalate) + waste-detection coaching hooks for Claude Code, a Skill+MCP fallback for Claude Desktop's Code tab (with DIY config tools), a deterministic PreToolUse guard against duplicate/oversized rereads, and PostToolUse trimmers for oversized Grep/Bash output. Measured savings only (own harness cost model), no vendor claims. Early stage: v0.x, calibrated on N=6 sessions.",
+  "version": "0.3.2",
   "license": "MIT",
   "author": {
     "name": "kimheetae0104",
