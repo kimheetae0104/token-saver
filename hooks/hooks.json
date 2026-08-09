@@ -14,6 +14,12 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/grep_trim.py\"" }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/bash_trim.py\"" }
+        ]
       }
     ],
     "UserPromptSubmit": [
