@@ -22,6 +22,9 @@ import json
 import os
 import sys
 import tempfile
+import time
+
+STATE_MAX_AGE_SEC = 24 * 60 * 60
 
 
 def state_dir():
@@ -70,6 +73,17 @@ def write_state(session_id, state):
         pass
 
 
+def _cleanup_old(d):
+    try:
+        now = time.time()
+        for name in os.listdir(d):
+            p = os.path.join(d, name)
+            if now - os.path.getmtime(p) > STATE_MAX_AGE_SEC:
+                os.remove(p)
+    except Exception:
+        pass
+
+
 def allow():
     sys.exit(0)
 
@@ -87,6 +101,8 @@ def deny(reason):
 
 def main():
     cfg = load_config()
+    if not isinstance(cfg, dict):
+        return allow()
     if os.environ.get("TOKEN_SAVER_DISABLE_PROMPT_GATE") == "1" or cfg.get("disabled"):
         return allow()
 
@@ -106,6 +122,7 @@ def main():
         return allow()
 
     write_state(session_id, {"flagged": True, "tripped": True})
+    _cleanup_old(state_dir())
     return deny(
         "모호한 요청으로 판단됨 — 먼저 의도·제약·성공기준·위임경계 파싱본을 텍스트로 "
         "밝히고 나서 다시 시도하세요."

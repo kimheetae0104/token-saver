@@ -114,6 +114,16 @@ def test_state_overwritten_each_turn():
         assert _read_state(data_dir, "sess-1")["flagged"] is False
 
 
+def test_specific_long_request_does_not_trip_hard_gate_despite_missing_slots():
+    """실측된 오탐: '41번째 줄'·'600으로'처럼 구체적인데 SUCCESS_WORDS/CONSTRAINT_WORDS
+    정규식과 우연히 안 겹치는 요청 — 넛지는 몰라도 하드게이트까지 트립하면 안 됨."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call_with_session(
+            "hooks/read_guard.py의 41번째 줄 상수를 600으로 바꿔줘", data_dir=data_dir)
+        state = _read_state(data_dir, "sess-1")
+        assert state["flagged"] is False, state
+
+
 def test_no_session_id_does_not_crash():
     out = _call("더 강화시켜")  # 기존 _call(), session_id 없음
     assert "의도" in out, out  # stdout 동작은 그대로 — 상태 쓰기만 스킵(fail-open)

@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(REPO, "hooks", "prompt_gate.py")
@@ -126,6 +127,29 @@ def test_applies_regardless_of_tool_name():
         _write_state(data_dir, "sess-1", {"flagged": True, "tripped": False})
         resp = _call(session_id="sess-1", tool_name="Write", data_dir=data_dir)
         assert resp is not None
+
+
+def test_cleanup_removes_old_state_files():
+    with tempfile.TemporaryDirectory() as data_dir:
+        d = os.path.join(data_dir, "prompt_gate")
+        os.makedirs(d, exist_ok=True)
+        stale_path = os.path.join(d, "stale-session.json")
+        with open(stale_path, "w") as f:
+            json.dump({"flagged": False, "tripped": False}, f)
+        old_time = time.time() - 25 * 60 * 60  # 25시간 전(24시간 임계값 초과)
+        os.utime(stale_path, (old_time, old_time))
+        _write_state(data_dir, "sess-1", {"flagged": True, "tripped": False})
+        _call(session_id="sess-1", data_dir=data_dir)  # deny 트리거 -> cleanup 실행
+        assert not os.path.exists(stale_path)
+
+
+def test_non_dict_config_value_fails_open():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_state(data_dir, "sess-1", {"flagged": True, "tripped": False})
+        with open(os.path.join(data_dir, "config.json"), "w") as f:
+            json.dump({"prompt_gate": "oops"}, f)
+        resp = _call(session_id="sess-1", data_dir=data_dir)
+        assert resp is None
 
 
 def main():

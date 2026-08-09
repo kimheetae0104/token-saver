@@ -95,7 +95,7 @@ def main():
     if is_broad and not has_delegation:
         missing.append("위임경계(직접 할지 위임할지)")
 
-    write_flag_state(session_id, bool(missing))
+    write_flag_state(session_id, len(words) <= SHORT_INTENT_MAX)
     if not missing:
         return
 
