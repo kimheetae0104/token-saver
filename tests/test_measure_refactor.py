@@ -3,6 +3,7 @@
 import os
 import sys
 import tempfile
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import measure
@@ -55,6 +56,112 @@ def test_capture_failures_text_no_subagents_is_empty():
         with open(path, "w") as f:
             f.write(FIXTURE)
         assert measure.capture_failures_text(path) == ""
+
+
+def test_capture_failures_filters_task_notification_messages():
+    """버그 검증: <task-notification>으로 시작하는 시스템 메시지는 user_correction_follow 후보에서 제외됨.
+    (수정 전엔 task-notification 텍스트 안의 PIVOT_MARKERS가 우연히 매치되어 오탐을 만들었음)"""
+    with tempfile.TemporaryDirectory() as d:
+        # 메인 세션 JSONL 생성: haiku 서브에이전트 end_ts(00:00:10Z) 직후
+        # <task-notification>으로 시작하는 user 메시지(PIVOT_MARKERS 포함)
+        main_path = os.path.join(d, "main-session.jsonl")
+        main_lines = [
+            json.dumps({"message": {"role": "user", "content": "작업 시작"}, "timestamp": "2026-08-05T00:00:00Z"}),
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "준비됨"}],
+                       "usage": {"input_tokens": 100, "output_tokens": 50}, "model": "claude-opus-5-20260101"},
+                       "timestamp": "2026-08-05T00:00:01Z"}),
+            # 서브에이전트 위임
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "tool_use",
+                       "name": "Agent", "id": "haiku-task-1"}], "usage": {"input_tokens": 50, "output_tokens": 10},
+                       "model": "claude-opus-5-20260101"}, "timestamp": "2026-08-05T00:00:02Z"}),
+            # 시스템이 자동 주입한 task-notification (task-notification 뒤에 PIVOT_MARKERS 단어 "대신" 포함)
+            json.dumps({"message": {"role": "user", "content": "<task-notification>Agent haiku-task-1 completed. 대신 다른 접근</task-notification>"},
+                       "timestamp": "2026-08-05T00:00:11Z"}),
+        ]
+        with open(main_path, "w") as f:
+            f.write("\n".join(main_lines) + "\n")
+
+        # 서브에이전트 task 생성 (haiku 모델, end_ts = 00:00:10Z)
+        base = os.path.splitext(main_path)[0]
+        subagents_dir = os.path.join(base, "subagents", "task-0")
+        os.makedirs(subagents_dir, exist_ok=True)
+
+        task_path = os.path.join(subagents_dir, "agent-haiku-task-1.jsonl")
+        haiku_task_lines = [
+            json.dumps({"message": {"role": "user", "content": "haiku 작업"}, "timestamp": "2026-08-05T00:00:03Z"}),
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "완료"}],
+                       "usage": {"input_tokens": 50, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 30},
+                       "model": "claude-haiku-4-5-20251001"}, "timestamp": "2026-08-05T00:00:10Z"}),
+        ]
+        with open(task_path, "w") as f:
+            f.write("\n".join(haiku_task_lines) + "\n")
+
+        # meta.json 생성
+        meta_path = task_path[:-len(".jsonl")] + ".meta.json"
+        meta = {"toolUseId": "haiku-task-1", "model": "claude-haiku-4-5-20251001", "agentType": "general-purpose",
+                "description": "테스트 haiku 작업"}
+        with open(meta_path, "w") as f:
+            json.dump(meta, f)
+
+        # capture_failures 호출
+        log_path = os.path.join(d, "test-failures.jsonl")
+        candidates = measure.capture_failures(main_path, log_path=log_path)
+
+        # 기대: user_correction_follow 후보가 생성되지 않음 (task-notification 필터링됨)
+        assert len(candidates) == 0, f"expected 0 candidates, got {len(candidates)}: {candidates}"
+
+
+def test_capture_failures_still_detects_real_user_corrections():
+    """정탐: 진짜 사용자가 입력한 PIVOT_MARKERS 메시지는 여전히 user_correction_follow 후보로 탐지됨."""
+    with tempfile.TemporaryDirectory() as d:
+        # 메인 세션: haiku end_ts(00:00:10Z) 직후 진짜 사용자 메시지(PIVOT_MARKERS 포함, task-notification 없음)
+        main_path = os.path.join(d, "main-session.jsonl")
+        main_lines = [
+            json.dumps({"message": {"role": "user", "content": "작업 시작"}, "timestamp": "2026-08-05T00:00:00Z"}),
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "준비됨"}],
+                       "usage": {"input_tokens": 100, "output_tokens": 50}, "model": "claude-opus-5-20260101"},
+                       "timestamp": "2026-08-05T00:00:01Z"}),
+            # 서브에이전트 위임
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "tool_use",
+                       "name": "Agent", "id": "haiku-task-2"}], "usage": {"input_tokens": 50, "output_tokens": 10},
+                       "model": "claude-opus-5-20260101"}, "timestamp": "2026-08-05T00:00:02Z"}),
+            # 진짜 사용자 메시지 (PIVOT_MARKERS "대신" 포함)
+            json.dumps({"message": {"role": "user", "content": "그건 됐고 대신 다른 방식으로 해줄래?"},
+                       "timestamp": "2026-08-05T00:00:11Z"}),
+        ]
+        with open(main_path, "w") as f:
+            f.write("\n".join(main_lines) + "\n")
+
+        # 서브에이전트 task 생성
+        base = os.path.splitext(main_path)[0]
+        subagents_dir = os.path.join(base, "subagents", "task-0")
+        os.makedirs(subagents_dir, exist_ok=True)
+
+        task_path = os.path.join(subagents_dir, "agent-haiku-task-2.jsonl")
+        haiku_task_lines = [
+            json.dumps({"message": {"role": "user", "content": "haiku 작업"}, "timestamp": "2026-08-05T00:00:03Z"}),
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "완료"}],
+                       "usage": {"input_tokens": 50, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 30},
+                       "model": "claude-haiku-4-5-20251001"}, "timestamp": "2026-08-05T00:00:10Z"}),
+        ]
+        with open(task_path, "w") as f:
+            f.write("\n".join(haiku_task_lines) + "\n")
+
+        # meta.json
+        meta_path = task_path[:-len(".jsonl")] + ".meta.json"
+        meta = {"toolUseId": "haiku-task-2", "model": "claude-haiku-4-5-20251001", "agentType": "general-purpose",
+                "description": "테스트 haiku 작업"}
+        with open(meta_path, "w") as f:
+            json.dump(meta, f)
+
+        # capture_failures 호출
+        log_path = os.path.join(d, "test-failures.jsonl")
+        candidates = measure.capture_failures(main_path, log_path=log_path)
+
+        # 기대: user_correction_follow 후보가 정확히 1개 생성됨
+        assert len(candidates) == 1, f"expected 1 candidate, got {len(candidates)}: {candidates}"
+        assert candidates[0]["type"] == "user_correction_follow"
+        assert "대신" in candidates[0]["user_text_snippet"] or "다른" in candidates[0]["user_text_snippet"]
 
 
 def main():

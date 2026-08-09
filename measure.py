@@ -525,6 +525,7 @@ def capture_failures(main_path, log_path=None):
     main_sess = parse_session(main_path)
     user_msgs = sorted(
         (u for u in main_sess["users"] if u.get("ts")), key=lambda u: u["ts"])
+    user_msgs = [u for u in user_msgs if not u["text"].lstrip().startswith("<task-notification>")]
     for ri in records:
         if ri["tier"] != "haiku" or not ri["end_ts"]:
             continue
