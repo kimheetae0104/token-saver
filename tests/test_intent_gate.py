@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(REPO, "hooks", "intent_gate.py")
@@ -66,6 +67,56 @@ def test_malformed_stdin_fails_open():
                           capture_output=True, text=True, env=dict(os.environ), timeout=10)
     assert proc.returncode == 0
     assert proc.stdout.strip() == ""
+
+
+def _call_with_session(prompt, session_id="sess-1", data_dir=None):
+    payload = {"prompt": prompt, "session_id": session_id}
+    env = dict(os.environ)
+    if data_dir:
+        env["CLAUDE_PLUGIN_DATA"] = data_dir
+    proc = subprocess.run([sys.executable, HOOK], input=json.dumps(payload),
+                          capture_output=True, text=True, env=env, timeout=10)
+    assert proc.returncode == 0, f"hook exited {proc.returncode}, stderr={proc.stderr!r}"
+    return proc.stdout.strip()
+
+
+def _read_state(data_dir, session_id):
+    path = os.path.join(data_dir, "prompt_gate", f"{session_id}.json")
+    with open(path) as f:
+        return json.load(f)
+
+
+def test_vague_prompt_writes_flagged_state():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call_with_session("더 강화시켜", data_dir=data_dir)
+        state = _read_state(data_dir, "sess-1")
+        assert state == {"flagged": True, "tripped": False}, state
+
+
+def test_clear_prompt_writes_unflagged_state():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call_with_session(
+            "measure.py의 check_line 함수만 수정해줘, 기존 포맷 절대 깨지 말고, "
+            "테스트 통과하면 완료로 간주", data_dir=data_dir)
+        state = _read_state(data_dir, "sess-1")
+        assert state == {"flagged": False, "tripped": False}, state
+
+
+def test_state_overwritten_each_turn():
+    """이전 턴이 flagged=True였어도, 다음 턴이 명확하면 flagged=False로 덮어써야
+    한다(과거 턴 상태가 새 턴에 새면 안 됨)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call_with_session("더 강화시켜", data_dir=data_dir)
+        assert _read_state(data_dir, "sess-1")["flagged"] is True
+        _call_with_session(
+            "measure.py의 check_line 함수만 수정해줘, 기존 포맷 절대 깨지 말고, "
+            "테스트 통과하면 완료로 간주", data_dir=data_dir)
+        assert _read_state(data_dir, "sess-1")["flagged"] is False
+
+
+def test_no_session_id_does_not_crash():
+    out = _call("더 강화시켜")  # 기존 _call(), session_id 없음
+    assert "의도" in out, out  # stdout 동작은 그대로 — 상태 쓰기만 스킵(fail-open)
 
 
 def main():

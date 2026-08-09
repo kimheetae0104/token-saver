@@ -9,8 +9,10 @@ AI-YAGNI). 사소한 요청은 침묵.
 보도록 의도(초단문+대상 생략 프록시)·위임경계(광범위 작업인데 직접/위임 언급 없음)를 추가.
 """
 import json
+import os
 import re
 import sys
+import tempfile
 
 ACTION_WORDS = (r"(만들|구현|개발|작성|추가|리팩터|고쳐|수정|바꿔|변경|설계|빌드|생성"
                 r"|강화|개선|향상|최적화|정리해|올려|늘려)")
@@ -26,25 +28,57 @@ SHORT_INTENT_MAX = 3  # 이하 단어수면 대상이 이전 대화에 암묵적
                       # 실제로 AskUserQuestion 되묻기가 필요했던 케이스)
 
 
+def state_dir():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    d = os.path.join(data_dir, "prompt_gate") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-prompt-gate")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def state_path(session_id):
+    return os.path.join(state_dir(), f"{session_id}.json")
+
+
+def write_flag_state(session_id, flagged):
+    """hooks/prompt_gate.py(PreToolUse)가 읽는 상태파일 — 매 턴 덮어써서 이전 턴 상태가
+    새 턴에 새지 않게 한다. session_id 없으면 아무것도 안 씀(fail-open)."""
+    if not session_id:
+        return
+    try:
+        path = state_path(session_id)
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"flagged": flagged, "tripped": False}, f)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
 def main():
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return
+    session_id = payload.get("session_id")
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
+        write_flag_state(session_id, False)
         return
     prompt = prompt.strip()
     if not prompt:
+        write_flag_state(session_id, False)
         return
 
     words = re.findall(r"\S+", prompt)
     if len(words) > WORD_COUNT_MAX:
-        return  # 이미 충분히 길게 씀 — 넛지 불필요
+        write_flag_state(session_id, False)
+        return
 
     has_action = re.search(ACTION_WORDS, prompt) is not None
     if not has_action:
-        return  # 착수형 요청이 아니면(질문·확인 등) 대상 아님
+        write_flag_state(session_id, False)
+        return
 
     has_constraint = re.search(CONSTRAINT_WORDS, prompt) is not None
     has_success = re.search(SUCCESS_WORDS, prompt) is not None
@@ -61,8 +95,9 @@ def main():
     if is_broad and not has_delegation:
         missing.append("위임경계(직접 할지 위임할지)")
 
+    write_flag_state(session_id, bool(missing))
     if not missing:
-        return  # 4슬롯 이미 충분
+        return
 
     print(f"💡 착수 전 확인: {', '.join(missing)}이 불명확하면 되묻고, 명확하면 파싱본 echo 후 진행 권장.")
 
