@@ -323,14 +323,14 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
    시작 전까지"로 매칭 폭 좁히기)는 **미착수**로 남음 — task-notification 필터로 137건 중
    137건이 이미 걸러졌지만, 진짜 사용자 발화가 여러 haiku에 중복매칭되는 잔여 리스크는 여전히
    있음(실측 사례 없음, 다음 후보).
-2. **`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
-   수치(총비용 기준)와 정의상 다름**(실험17 처방#3). 현재 `overhead_pct_of_content`·
-   `multiplier_vs_baseline`은 `orchestrator_cost`만으로 계산하는데, 실험10·17의 헤드라인
-   절감률은 `orchestrator_cost + content_cost`(총비용) 기준이다 — 지금 상태로는
-   `multiplier_vs_baseline`만 보면 절감폭이 실제보다 커 보이는 착시가 생긴다(실험17 round1:
-   함수값 3.45배 vs 총비용 실제 4.66배). docstring의 inclusive 가정과 실제 exclusive 사용도
-   불일치(이번 픽스 웨이브에서 문서화만 하고 코드는 안 건드림). 후속: 함수를 총비용 기준으로
-   재정의하거나 두 지표를 구분해 반환하도록 시그니처 변경.
+   ~~**`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
+   수치(총비용 기준)와 정의상 다름**(실험17 처방#3)~~ **완료(2026-08-09)**:
+   `multiplier_vs_baseline`을 `total_cost(=orchestrator_cost+content_cost)/baseline_cost`
+   기준으로 재정의(기존 `orchestrator_cost`만 쓰던 정의는 `orchestrator_only_multiplier_vs_baseline`으로
+   이름 붙여 참고용으로 보존). docstring도 exclusive 가정으로 정정하고 inclusive 검증 로직
+   (`orchestrator_cost < content_cost`면 예외)은 음수 방지 검증으로 교체. 회귀테스트에 실험10
+   헤드라인(0.885배/11.5% 절감)과 실험17 round1(4.664배) 실측치를 직접 assert하도록 추가,
+   7/7 통과.
 3. **겹침 재독 스캐너(`line_range_overlap_detection`) 재실행 결과에 따른 read_guard 구현 여부
    결정**(이번 픽스 웨이브에서 스캐너 자체의 과소집계 버그는 고쳤고 재측정도 했다 — 최종
    수치는 세션 25개, Read 109건 중 겹침 8건=7.34%, 5% 임계값을 넘어 실험16의 원 기각 결론이
