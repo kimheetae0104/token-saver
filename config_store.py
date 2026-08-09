@@ -22,6 +22,7 @@ DEFAULTS = {
     "read_guard": {"disabled": False, "large_file_lines": 500},
     "grep_trim": {"disabled": False, "match_threshold": 100, "keep_head": 30, "keep_tail": 10},
     "bash_trim": {"disabled": False, "line_threshold": 200, "keep_head": 40, "keep_tail": 20},
+    "prompt_gate": {"disabled": False},
 }
 _TYPES = {
     "disabled": bool,

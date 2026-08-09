@@ -107,11 +107,21 @@ def test_set_value_rejects_bad_type():
         d.cleanup()
 
 
+def test_prompt_gate_defaults():
+    d = _isolated()
+    try:
+        cfg = config_store.effective("prompt_gate")
+        check("prompt_gate_defaults", cfg == {"disabled": False}, cfg)
+    finally:
+        d.cleanup()
+
+
 def test_get_all_covers_all_hooks():
     d = _isolated()
     try:
         all_cfg = config_store.get_all()
-        check("get_all_keys", set(all_cfg) == {"read_guard", "grep_trim", "bash_trim"}, all_cfg)
+        check("get_all_keys",
+              set(all_cfg) == {"read_guard", "grep_trim", "bash_trim", "prompt_gate"}, all_cfg)
     finally:
         d.cleanup()
 

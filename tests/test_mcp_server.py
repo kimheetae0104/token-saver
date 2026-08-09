@@ -148,6 +148,29 @@ def test_config_reset_restores_default():
             "line_threshold=200") >= 1
 
 
+def test_config_get_includes_prompt_gate():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_get", "arguments": {}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "prompt_gate" in text, text
+
+
+def test_config_set_accepts_prompt_gate_hook():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_set",
+                         "arguments": {"hook": "prompt_gate", "key": "disabled", "value": True}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "적용됨" in text, text
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0
