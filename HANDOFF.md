@@ -368,6 +368,25 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
    걸리면) 이 judge 경로를 재사용해 재검증할 것 — 지금은 "구조는 검증됐으나 실전 사례로 뒤집는
    검증은 아직 없음" 상태.
 
+## Desktop DIY 설정 — MCP로 임계값·kill switch 조회/변경 (2026-08-09, 12차 후속)
+`read_guard`·`grep_trim`·`bash_trim`의 임계값(large_file_lines/match_threshold/
+line_threshold/keep_head/keep_tail)과 kill switch가 지금까지 소스 코드 하드코딩
+또는 env var로만 조작 가능했음 — Desktop Code 탭은 hooks 자체가 안 뜨므로(10차)
+이 환경에서 유일하게 살아있는 MCP 채널로도 DIY가 안 됐던 갭. `config_store.py`
+(신규, repo 루트) + `CLAUDE_PLUGIN_DATA/config.json` 오버레이 레이어로 해소:
+- 새 MCP 툴 3개: `token_saver_config_get`(현재값+기본값 조회), `token_saver_config_set`
+  (hook/key/value 검증 후 저장), `token_saver_config_reset`(기본값 복원).
+- 3개 hook 전부 `main()` 시작에서 `config.json`을 읽어 자체 상수를 오버라이드 —
+  CLI/IDE에서도 같은 파일을 통해 동일하게 반영(소스 수정 없이 조정 가능해짐).
+- 우선순위: env kill switch(`TOKEN_SAVER_DISABLE_*`) > config.json > 하드코딩 기본값
+  — 기존 "운영 중 즉시 차단" 수단을 이 기능이 절대 약화시키지 않음.
+- config.json에 없는 hook/key는 명시적으로 거부(오타로 조용히 무시되는 설정 없음).
+- 신규 테스트: `tests/test_config_store.py`(18) + 3개 hook 테스트에 config 오버라이드
+  테스트 추가 + `tests/test_mcp_server.py`에 config 툴 테스트 추가. 전체 102/102 통과.
+- 범위 밖(의도적): `measure.py`의 `THRESH`(컨텍스트 경고 등, 실측 기반 보정값)는 이번에
+  안 건드림 — 그건 리서치 캘리브레이션 값이라 DIY 대상이 아니라고 판단, 이번 스코프는
+  read_guard/grep_trim/bash_trim 3개 hook의 트림/차단 동작으로 한정(사용자 확인 하에 선택).
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).

@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import measure  # noqa: E402
+import config_store  # noqa: E402
 
 
 def log(msg):
@@ -43,7 +44,7 @@ def _resolve_transcript():
     return path, None
 
 
-def tool_check():
+def tool_check(args=None):
     """statusline_text()(check_line()이 아님) 사용 — Desktop Code 탭은 statusLine hook도
     안 뜨므로, 이 MCP 툴이 사람이 실제로 보는 유일한 경로다. check_line()은 어시스턴트
     컨텍스트 전용 비가시 채널이라 캐시절감·차단절감 세그먼트가 빠져 있어 여기엔 안 맞는다."""
@@ -53,7 +54,7 @@ def tool_check():
     return measure.statusline_text(path)
 
 
-def tool_autopsy():
+def tool_autopsy(args=None):
     path, err = _resolve_transcript()
     if err:
         return err
@@ -65,6 +66,42 @@ def tool_autopsy():
     return "\n".join(parts)
 
 
+def tool_config_get(args=None):
+    """read_guard·grep_trim·bash_trim의 현재 유효 설정(기본값 + DIY 오버라이드)을 사람이
+    읽을 수 있게 요약한다. Desktop Code 탭은 hooks가 안 뜨므로, 값을 바꿔도 CLI/IDE 세션에서
+    그 hook이 다음번 실행될 때 반영된다 — Desktop 자체의 자동 동작에는 영향 없음을 명시."""
+    overrides = config_store.load_raw()
+    lines = ["read_guard·grep_trim·bash_trim 현재 설정(*=DIY로 바뀐 값, 나머지는 기본값):"]
+    for hook_name, cfg in config_store.get_all().items():
+        changed = overrides.get(hook_name, {})
+        parts = [f"{k}={v}{'*' if k in changed else ''}" for k, v in cfg.items()]
+        lines.append(f"  {hook_name}: " + ", ".join(parts))
+    lines.append(f"설정 파일: {config_store.config_path()}")
+    lines.append(
+        "참고: Desktop Code 탭은 hooks가 안 뜨므로 이 값은 CLI/IDE 세션에서만 실제로 "
+        "적용된다(env kill switch TOKEN_SAVER_DISABLE_*가 항상 최우선)."
+    )
+    return "\n".join(lines)
+
+
+def tool_config_set(args):
+    """token_saver_config_set(hook, key, value) — 임계값·kill switch 하나를 변경한다."""
+    args = args or {}
+    ok, result = config_store.set_value(args.get("hook"), args.get("key"), args.get("value"))
+    if not ok:
+        return f"설정 실패: {result}"
+    return f"적용됨: {args.get('hook')}.{args.get('key')} = {result}"
+
+
+def tool_config_reset(args=None):
+    """token_saver_config_reset(hook?) — hook 지정 시 그 hook만, 없으면 전체를 기본값으로."""
+    hook_name = (args or {}).get("hook")
+    config_store.reset(hook_name)
+    return f"{hook_name or '전체'} 설정을 기본값으로 복원했습니다."
+
+
+EMPTY_SCHEMA = {"type": "object", "properties": {}}
+
 TOOLS = {
     "token_saver_check": {
         "description": (
@@ -73,6 +110,7 @@ TOOLS = {
             "발화 중) 이 툴을 다시 호출하지 말 것 — Desktop Code 탭처럼 그 줄이 안 보일 때만 호출."
         ),
         "handler": tool_check,
+        "input_schema": EMPTY_SCHEMA,
     },
     "token_saver_autopsy": {
         "description": (
@@ -81,6 +119,47 @@ TOOLS = {
             "인사·'여기까지'류) 한 번만 호출해 요약을 짧게 보여주고 그 외엔 언급하지 말 것."
         ),
         "handler": tool_autopsy,
+        "input_schema": EMPTY_SCHEMA,
+    },
+    "token_saver_config_get": {
+        "description": (
+            "read_guard(재독 차단)·grep_trim·bash_trim(긴 출력 트림)의 현재 임계값과 "
+            "on/off 상태를 조회한다. 인자 없음. 사용자가 '너무 자주 막는다/너무 안 막는다' "
+            "류로 조정을 원할 때 먼저 호출해 현재값을 보여줄 것."
+        ),
+        "handler": tool_config_get,
+        "input_schema": EMPTY_SCHEMA,
+    },
+    "token_saver_config_set": {
+        "description": (
+            "read_guard·grep_trim·bash_trim 중 하나의 임계값 또는 kill switch를 DIY로 "
+            "변경한다. hook: 'read_guard'|'grep_trim'|'bash_trim'. key: read_guard는 "
+            "'disabled'|'large_file_lines', grep_trim은 'disabled'|'match_threshold'|"
+            "'keep_head'|'keep_tail', bash_trim은 'disabled'|'line_threshold'|'keep_head'|"
+            "'keep_tail'. value: 숫자 또는 true/false. 변경 즉시 config.json에 저장되고 "
+            "해당 hook의 다음 실행부터 반영된다(현재 실행 중인 호출엔 소급 적용 안 됨)."
+        ),
+        "handler": tool_config_set,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hook": {"type": "string", "enum": ["read_guard", "grep_trim", "bash_trim"]},
+                "key": {"type": "string"},
+                "value": {},
+            },
+            "required": ["hook", "key", "value"],
+        },
+    },
+    "token_saver_config_reset": {
+        "description": (
+            "token_saver_config_set으로 바꾼 값을 기본값으로 되돌린다. hook을 지정하면 "
+            "그 hook만, 생략하면 전체(read_guard·grep_trim·bash_trim 모두)를 초기화한다."
+        ),
+        "handler": tool_config_reset,
+        "input_schema": {
+            "type": "object",
+            "properties": {"hook": {"type": "string", "enum": ["read_guard", "grep_trim", "bash_trim"]}},
+        },
     },
 }
 
@@ -113,7 +192,7 @@ def handle(msg):
             "result": {
                 "tools": [
                     {"name": name, "description": spec["description"],
-                     "inputSchema": {"type": "object", "properties": {}}}
+                     "inputSchema": spec.get("input_schema", EMPTY_SCHEMA)}
                     for name, spec in TOOLS.items()
                 ]
             },
@@ -121,13 +200,14 @@ def handle(msg):
     elif method == "tools/call":
         params = msg.get("params", {})
         name = params.get("name")
+        arguments = params.get("arguments") or {}
         spec = TOOLS.get(name)
         if spec is None:
             send({"jsonrpc": "2.0", "id": mid,
                   "error": {"code": -32601, "message": f"unknown tool {name}"}})
             return
         try:
-            text = spec["handler"]()
+            text = spec["handler"](arguments)
         except Exception as e:
             log(f"tool {name} failed: {e}")
             text = f"내부 오류: {e}"

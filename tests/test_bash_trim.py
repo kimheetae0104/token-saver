@@ -34,6 +34,11 @@ def _lines(n, prefix="line"):
     return "\n".join(f"{prefix} {i}" for i in range(n))
 
 
+def _write_config(data_dir, cfg):
+    with open(os.path.join(data_dir, "config.json"), "w") as f:
+        json.dump({"bash_trim": cfg}, f)
+
+
 def test_small_output_passthrough():
     resp = _call(_lines(50))
     assert resp is None
@@ -110,6 +115,41 @@ def test_trim_logs_estimated_tokens_saved():
         assert len(records) == 1, records
         assert records[0]["source"] == "bash_trim"
         assert records[0]["estimated_tokens"] > 0
+
+
+def test_config_disabled_skips_trim():
+    """config.json의 bash_trim.disabled=true — DIY로 이 hook을 통째로 끌 수 있다
+    (env kill switch를 안 쓰고도, Desktop MCP token_saver_config_set으로 조작 가능)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"disabled": True})
+        resp = _call(_lines(300), data_dir=data_dir)
+        assert resp is None
+
+
+def test_config_custom_line_threshold_applies():
+    """config.json으로 임계값을 낮추면 기본값(200)에선 안 걸릴 출력도 트림된다."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"line_threshold": 10})
+        resp = _call(_lines(50), data_dir=data_dir)
+        assert resp is not None
+        assert "생략" in resp["hookSpecificOutput"]["updatedToolOutput"]
+
+
+def test_config_custom_keep_head_tail_applies():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"keep_head": 2, "keep_tail": 1})
+        resp = _call(_lines(300), data_dir=data_dir)
+        trimmed = resp["hookSpecificOutput"]["updatedToolOutput"]
+        assert "line 1" in trimmed and "line 2" not in trimmed.split("...")[0]
+        assert "line 299" in trimmed
+
+
+def test_env_kill_switch_wins_over_config_enabled():
+    """env kill switch가 config.json보다 항상 우선(운영 중 즉시 차단 수단 무회귀)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"disabled": False})
+        resp = _call(_lines(300), disable=True, data_dir=data_dir)
+        assert resp is None
 
 
 def main():

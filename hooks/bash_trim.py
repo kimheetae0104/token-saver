@@ -14,6 +14,10 @@ KEEP_TAIL도 grep_trim보다 넉넉히(20줄) 잡아 테스트 요약·종료 �
 LLM 호출 없음, 결정론(줄 수 세기·슬라이싱만). stdlib만 사용.
 킬스위치: TOKEN_SAVER_DISABLE_BASH_TRIM=1 이면 무조건 원본 그대로.
 fail-open: stdin 파싱 실패, tool_output 없음/문자열 아님 등 어떤 예외든 조용히 원본 유지.
+
+DIY 설정(2026-08-09): config.json(config_store.py 참고)이 있으면 disabled·
+line_threshold·keep_head·keep_tail을 오버라이드한다. read_guard.py와 동일한 이유로
+env kill switch가 항상 config보다 우선.
 """
 import json
 import os
@@ -24,6 +28,20 @@ import time
 LINE_THRESHOLD = 200
 KEEP_HEAD = 40
 KEEP_TAIL = 20
+
+
+def config_path():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+
+
+def load_config():
+    try:
+        with open(config_path(), "r") as f:
+            return json.load(f).get("bash_trim", {})
+    except Exception:
+        return {}
 
 
 def savings_log_dir():
@@ -73,8 +91,12 @@ def rewrite(text):
 
 
 def main():
-    if os.environ.get("TOKEN_SAVER_DISABLE_BASH_TRIM") == "1":
+    cfg = load_config()
+    if os.environ.get("TOKEN_SAVER_DISABLE_BASH_TRIM") == "1" or cfg.get("disabled"):
         return allow()
+    line_threshold = cfg.get("line_threshold", LINE_THRESHOLD)
+    keep_head = cfg.get("keep_head", KEEP_HEAD)
+    keep_tail = cfg.get("keep_tail", KEEP_TAIL)
 
     try:
         payload = json.load(sys.stdin)
@@ -95,15 +117,15 @@ def main():
 
     lines = tool_output.split("\n")
     total = len(lines)
-    if total <= LINE_THRESHOLD:
+    if total <= line_threshold:
         return allow()
 
-    head = lines[:KEEP_HEAD]
-    tail = lines[-KEEP_TAIL:] if KEEP_TAIL else []
+    head = lines[:keep_head]
+    tail = lines[-keep_tail:] if keep_tail else []
     omitted = total - len(head) - len(tail)
     note = (f"... (중간 {omitted}줄 생략, 전체 {total}줄 출력 — 필요한 부분만 보려면 "
             f"head/grep/wc로 좁혀서 재실행하세요) ...")
-    omitted_lines = lines[KEEP_HEAD: total - KEEP_TAIL if KEEP_TAIL else total]
+    omitted_lines = lines[keep_head: total - keep_tail if keep_tail else total]
     log_savings(payload.get("session_id"), "bash_trim",
                 estimate_tokens("\n".join(omitted_lines)))
     trimmed = "\n".join(head + [note] + tail)

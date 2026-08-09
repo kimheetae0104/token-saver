@@ -35,6 +35,11 @@ def _lines(n, prefix="match"):
     return "\n".join(f"{prefix} {i}" for i in range(n))
 
 
+def _write_config(data_dir, cfg):
+    with open(os.path.join(data_dir, "config.json"), "w") as f:
+        json.dump({"grep_trim": cfg}, f)
+
+
 def test_small_output_passthrough():
     resp = _call(_lines(20))
     assert resp is None
@@ -113,6 +118,28 @@ def test_trim_logs_estimated_tokens_saved():
         assert len(records) == 1, records
         assert records[0]["source"] == "grep_trim"
         assert records[0]["estimated_tokens"] > 0
+
+
+def test_config_disabled_skips_trim():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"disabled": True})
+        resp = _call(_lines(150), data_dir=data_dir)
+        assert resp is None
+
+
+def test_config_custom_match_threshold_applies():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"match_threshold": 10})
+        resp = _call(_lines(50), data_dir=data_dir)
+        assert resp is not None
+        assert "생략" in resp["hookSpecificOutput"]["updatedToolOutput"]
+
+
+def test_env_kill_switch_wins_over_config_enabled():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"disabled": False})
+        resp = _call(_lines(150), disable=True, data_dir=data_dir)
+        assert resp is None
 
 
 def main():

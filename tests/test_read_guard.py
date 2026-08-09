@@ -38,6 +38,11 @@ def _make_file(d, name, n_lines):
     return path
 
 
+def _write_config(data_dir, cfg):
+    with open(os.path.join(data_dir, "config.json"), "w") as f:
+        json.dump({"read_guard": cfg}, f)
+
+
 def test_allows_first_read():
     with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
         f = _make_file(work, "small.txt", 10)
@@ -222,6 +227,37 @@ def test_subset_reread_logs_estimated_tokens_saved():
         assert len(records) == 1, records
         assert records[0]["source"] == "read_guard_subset"
         assert records[0]["estimated_tokens"] > 0
+
+
+def test_config_disabled_allows_everything():
+    """config.json의 read_guard.disabled=true — DIY로 이 hook을 통째로 끌 수 있다."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        _write_config(data_dir, {"disabled": True})
+        f = _make_file(work, "small.txt", 10)
+        _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir)
+        r2 = _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir)
+        assert r2 is None, "config로 꺼졌으면 정확히 같은 범위 재독도 허용해야 함"
+
+
+def test_config_custom_large_file_lines_applies():
+    """임계값을 낮추면 기본값(500줄)에선 안 걸릴 파일도 재통독 차단 대상이 된다."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        _write_config(data_dir, {"large_file_lines": 20})
+        f = _make_file(work, "mid.txt", 30)
+        r1 = _call({"file_path": f, "offset": 0, "limit": 5}, data_dir=data_dir)
+        assert r1 is None
+        r2 = _call({"file_path": f}, data_dir=data_dir)
+        assert r2 is not None
+        assert "20줄" in r2["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_env_kill_switch_wins_over_config_enabled():
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        _write_config(data_dir, {"disabled": False})
+        f = _make_file(work, "small.txt", 10)
+        _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir)
+        r2 = _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir, disable=True)
+        assert r2 is None
 
 
 def main():

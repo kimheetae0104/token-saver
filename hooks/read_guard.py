@@ -25,6 +25,11 @@ LLM 호출 없음, 전부 결정론(정규식 아님 — 상태 비교만). stdl
 킬스위치: TOKEN_SAVER_DISABLE_GUARD=1 이면 무조건 허용(운영 중 문제 생기면 즉시 끌 수 있음).
 fail-open: session_id/file_path 없음, 상태 파싱 실패, 대상 파일 접근 실패 등 어떤 예외든
 조용히 허용 — tool 호출을 절대 깨뜨리지 않는다.
+
+DIY 설정(2026-08-09): config.json(config_store.py 참고, 경로는 savings_log_dir과 같은
+CLAUDE_PLUGIN_DATA 규약)이 있으면 disabled·large_file_lines를 오버라이드한다. Desktop
+Code 탭은 hooks가 안 뜨므로 MCP token_saver_config_set이 이 파일을 쓰는 유일한 경로 —
+CLI/IDE에서 이 hook이 직접 읽어 반영한다. env kill switch가 항상 config보다 우선.
 """
 import json
 import os
@@ -46,6 +51,20 @@ def state_dir():
 
 def state_path(session_id):
     return os.path.join(state_dir(), f"{session_id}.jsonl")
+
+
+def config_path():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+
+
+def load_config():
+    try:
+        with open(config_path(), "r") as f:
+            return json.load(f).get("read_guard", {})
+    except Exception:
+        return {}
 
 
 def savings_log_dir():
@@ -150,8 +169,10 @@ def deny(reason):
 
 
 def main():
-    if os.environ.get("TOKEN_SAVER_DISABLE_GUARD") == "1":
+    cfg = load_config()
+    if os.environ.get("TOKEN_SAVER_DISABLE_GUARD") == "1" or cfg.get("disabled"):
         return allow()
+    large_file_lines = cfg.get("large_file_lines", LARGE_FILE_LINES)
 
     try:
         payload = json.load(sys.stdin)
@@ -245,10 +266,10 @@ def main():
         except Exception:
             n_lines = 0
             full_text = ""
-        if n_lines > LARGE_FILE_LINES:
+        if n_lines > large_file_lines:
             log_savings(session_id, "read_guard_large", estimate_tokens(full_text))
             return deny(
-                f"{file_path}은 {n_lines}줄로 임계값({LARGE_FILE_LINES}줄)을 넘고, "
+                f"{file_path}은 {n_lines}줄로 임계값({large_file_lines}줄)을 넘고, "
                 "이 세션에서 이미 읽은 적이 있으며 그 이후 변경되지 않았습니다. "
                 "전체를 다시 읽지 말고 Grep으로 필요한 위치를 먼저 찾거나 "
                 "offset/limit로 필요한 범위만 지정하세요."

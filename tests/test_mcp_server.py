@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = os.path.join(REPO, "mcp", "server.py")
@@ -68,6 +69,83 @@ def test_tools_list_includes_autopsy():
     resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])
     names = {t["name"] for t in resp[0]["result"]["tools"]}
     assert "token_saver_autopsy" in names
+
+
+def test_tools_list_includes_config_tools():
+    resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])
+    names = {t["name"] for t in resp[0]["result"]["tools"]}
+    assert {"token_saver_config_get", "token_saver_config_set", "token_saver_config_reset"} <= names
+
+
+def test_config_get_shows_defaults():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_get", "arguments": {}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "read_guard" in text and "grep_trim" in text and "bash_trim" in text
+        assert "large_file_lines=500" in text
+
+
+def test_config_set_then_get_reflects_change():
+    with tempfile.TemporaryDirectory() as data_dir:
+        env = {"CLAUDE_PLUGIN_DATA": data_dir}
+        set_resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_set",
+                         "arguments": {"hook": "bash_trim", "key": "line_threshold", "value": 50}}}],
+            env_extra=env,
+        )
+        set_text = set_resp[0]["result"]["content"][0]["text"]
+        assert "적용됨" in set_text and "50" in set_text
+
+        get_resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_get", "arguments": {}}}],
+            env_extra=env,
+        )
+        get_text = get_resp[0]["result"]["content"][0]["text"]
+        assert "line_threshold=50*" in get_text
+
+
+def test_config_set_rejects_unknown_key():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_set",
+                         "arguments": {"hook": "bash_trim", "key": "not_a_key", "value": 1}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "설정 실패" in text
+
+
+def test_config_reset_restores_default():
+    with tempfile.TemporaryDirectory() as data_dir:
+        env = {"CLAUDE_PLUGIN_DATA": data_dir}
+        _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_set",
+                         "arguments": {"hook": "bash_trim", "key": "line_threshold", "value": 50}}}],
+            env_extra=env,
+        )
+        reset_resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_reset", "arguments": {"hook": "bash_trim"}}}],
+            env_extra=env,
+        )
+        assert "기본값으로 복원" in reset_resp[0]["result"]["content"][0]["text"]
+
+        get_resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_get", "arguments": {}}}],
+            env_extra=env,
+        )
+        get_text = get_resp[0]["result"]["content"][0]["text"]
+        assert "line_threshold=200," in get_text or "line_threshold=200 " in get_text or get_text.count(
+            "line_threshold=200") >= 1
 
 
 def main():
