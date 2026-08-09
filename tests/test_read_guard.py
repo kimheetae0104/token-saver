@@ -177,6 +177,53 @@ def test_blocked_large_file_reread_logs_estimated_tokens_saved():
         assert records[0]["estimated_tokens"] > 0
 
 
+def test_blocks_subset_reread_of_earlier_full_read():
+    """전체 통독 후 그 안의 일부 범위만 다시 요청 — 파일 안 바뀌었으면 100% 중복이라 차단."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "small.txt", 10)
+        r1 = _call({"file_path": f}, data_dir=data_dir)  # 전체 통독
+        assert r1 is None
+        r2 = _call({"file_path": f, "offset": 2, "limit": 3}, data_dir=data_dir)  # 그 부분집합
+        assert r2 is not None
+        reason = r2["hookSpecificOutput"]["permissionDecisionReason"]
+        assert r2["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "완전히 포함" in reason
+
+
+def test_blocks_subset_reread_of_earlier_wider_range():
+    """넓은 범위(1~8) 재독 후 그 안의 좁은 부분(2~5) 재요청 — offset/limit이 달라도 부분집합이면 차단."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "small.txt", 10)
+        r1 = _call({"file_path": f, "offset": 1, "limit": 8}, data_dir=data_dir)
+        assert r1 is None
+        r2 = _call({"file_path": f, "offset": 2, "limit": 4}, data_dir=data_dir)  # 2~5 ⊆ 1~8
+        assert r2 is not None
+        assert r2["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_allows_overlapping_range_that_extends_beyond():
+    """겹치긴 하지만 이전 범위 밖으로 확장되는 요청(새 정보 있음)은 허용."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "small.txt", 10)
+        r1 = _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir)
+        assert r1 is None
+        r2 = _call({"file_path": f, "offset": 1, "limit": 8}, data_dir=data_dir)  # 1~8 ⊄ 1~5
+        assert r2 is None
+
+
+def test_subset_reread_logs_estimated_tokens_saved():
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "small.txt", 10)
+        _call({"file_path": f}, session_id="sess-sub", data_dir=data_dir)
+        _call({"file_path": f, "offset": 2, "limit": 3}, session_id="sess-sub", data_dir=data_dir)
+        log_path = os.path.join(data_dir, "token_savings", "sess-sub.jsonl")
+        with open(log_path) as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        assert len(records) == 1, records
+        assert records[0]["source"] == "read_guard_subset"
+        assert records[0]["estimated_tokens"] > 0
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

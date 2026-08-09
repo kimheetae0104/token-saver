@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse hook (matcher: Read) — 같은 세션 안에서 정확히 같은 범위를 재독하거나,
-이미 본 대형 파일을 스코프 없이 다시 통째로 읽는 걸 결정론적으로 차단한다.
+이미 읽은 더 넓은 범위의 부분집합을 재독하거나, 이미 본 대형 파일을 스코프 없이 다시
+통째로 읽는 걸 결정론적으로 차단한다.
 
 기존 hooks(intent_gate.py·habit_coaching.py 등)는 전부 advisory(텍스트 제안만) — 이
 hook은 이 repo 최초로 실제 tool 호출을 deny할 수 있는 hook이다(PreToolUse는
@@ -12,10 +13,13 @@ permissionDecision:"deny"로 실행 자체를 막을 수 있음, UserPromptSubmi
 없고, 모델 자동 다운그레이드는 실험7 근거로 기각). 정직한 기대치: 5~15%, read-thrash 있는
 세션에 한정.
 
-체크1(정확한 범위 재독)·체크2(대형파일 스코프없는 재독) 둘 다 **mtime이 그대로일 때만**
-차단한다 — Read→Edit→Read(수정 확인) 패턴은 mtime이 바뀌므로 항상 허용되고, 이게 없으면
-정상적인 재확인까지 막아 품질손상으로 이어진다. 최초 통독은 파일 크기와 무관하게 항상 허용
-(정당한 전체 이해 작업 보호).
+체크1(정확한 범위 재독)·체크1b(부분집합 재독, 2026-08-09 추가)·체크2(대형파일 스코프없는
+재독) 셋 다 **mtime이 그대로일 때만** 차단한다 — Read→Edit→Read(수정 확인) 패턴은 mtime이
+바뀌므로 항상 허용되고, 이게 없으면 정상적인 재확인까지 막아 품질손상으로 이어진다. 최초
+통독은 파일 크기와 무관하게 항상 허용(정당한 전체 이해 작업 보호). 체크1b는 offset/limit이
+정확히 같지 않아도, 이미 읽은 범위 안에 완전히 포함되면 파일이 안 바뀐 이상 내용이 100%
+동일하므로 정보 손실 없이 차단한다(체크1의 일반화 — 넓은 통독 후 그 안의 좁은 재독을 잡는
+실사용 패턴 커버).
 
 LLM 호출 없음, 전부 결정론(정규식 아님 — 상태 비교만). stdlib만 사용.
 킬스위치: TOKEN_SAVER_DISABLE_GUARD=1 이면 무조건 허용(운영 중 문제 생기면 즉시 끌 수 있음).
@@ -70,6 +74,17 @@ def log_savings(session_id, source, estimated_tokens):
             }) + "\n")
     except Exception:
         pass
+
+
+def _line_range(offset, limit, total_lines):
+    """Read 툴 semantics(offset 1-index 시작 줄, limit 없으면 EOF까지)로 (시작, 끝) 줄
+    번호를 계산. total_lines를 모르면(파일 접근 실패) None — 판단 불가로 안전하게 스킵."""
+    if offset is None and limit is None:
+        return (1, total_lines) if total_lines is not None else None
+    start = offset if offset is not None else 1
+    if limit is not None:
+        return (start, start + limit - 1)
+    return (start, total_lines) if total_lines is not None else None
 
 
 def _slice_for_estimate(file_path, offset, limit):
@@ -189,6 +204,37 @@ def main():
             "다시 Read하지 말고 이전 결과를 그대로 활용하거나, Grep으로 특정 패턴만 조회하거나, "
             "아직 안 읽은 다른 offset/limit를 지정하세요."
         )
+
+    # 체크1b: 이미 읽은 더 넓은 범위의 부분집합 재독. 체크1(정확히 같은 offset/limit)과
+    # 달리 offset/limit이 다르더라도, 같은 mtime에 이미 읽은 범위 안에 완전히 포함되면
+    # 파일 내용이 안 바뀐 이상 정보 손실 없이 차단 가능(설계 원칙: 품질 손상 위험 없는
+    # 결정론적 자동화만). file_map에 이 파일 기록이 있을 때만 total_lines를 계산해
+    # 첫 Read(가장 흔한 경로)에 불필요한 파일 I/O를 추가하지 않는다.
+    if file_path in file_map:
+        try:
+            with open(file_path, "r", errors="replace") as f:
+                _text = f.read()
+            total_lines = _text.count("\n") + (1 if _text and not _text.endswith("\n") else 0)
+        except Exception:
+            total_lines = None
+        cur_range = _line_range(offset, limit, total_lines)
+        if cur_range:
+            for r in records:
+                try:
+                    if r["file_path"] != file_path or r["mtime"] != current_mtime:
+                        continue
+                    prev_range = _line_range(r.get("offset"), r.get("limit"), total_lines)
+                except Exception:
+                    continue
+                if (prev_range and prev_range[0] <= cur_range[0] and cur_range[1] <= prev_range[1]
+                        and prev_range != cur_range):
+                    log_savings(session_id, "read_guard_subset",
+                                estimate_tokens(_slice_for_estimate(file_path, offset, limit)))
+                    return deny(
+                        f"{file_path}의 {cur_range[0]}~{cur_range[1]}줄은 이미 이 세션에서 읽은 "
+                        f"{prev_range[0]}~{prev_range[1]}줄 범위에 완전히 포함되며, 그 이후 파일도 "
+                        "변경되지 않았습니다. 다시 Read하지 말고 이전 결과를 그대로 활용하세요."
+                    )
 
     # 체크2: 대형 파일을 스코프 없이 재독(부분이든 전체든 이미 한 번 본 파일 대상)
     if offset is None and limit is None and file_map.get(file_path) == current_mtime:
