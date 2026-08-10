@@ -83,19 +83,21 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 알려진 제한사항
 
-- **(2026-08-10 일부 해소) `UserPromptSubmit` hook의 plain stdout은 사용자 화면에 뜨지
+- **(2026-08-10 검증 완료, 음성) `UserPromptSubmit` hook의 plain stdout은 사용자 화면에 뜨지
   않습니다** — 공식 문서(code.claude.com/docs/en/hooks, "Add context for Claude" 섹션)에
   "시스템 리마인더로 감싸져 Claude 컨텍스트에만 들어가고 어떤 인터페이스에서도 채팅
   메시지로 표시되지 않는다"고 명시돼 있고, 실사용 중 사용자가 직접 확인해 재발견했습니다
-  (2026-08-08). 다만 같은 공식 문서에 **`systemMessage`라는 별도 top-level 필드가 전체
+  (2026-08-08). 같은 공식 문서에 **`systemMessage`라는 별도 top-level 필드가 전체
   hook 이벤트 공통으로 존재하고, 이건 Claude 컨텍스트가 아니라 사용자 화면에 직접
-  렌더링된다**고 명시돼 있음을 뒤늦게 확인했습니다 — `intent_gate.py`·`habit_coaching.py`·
-  `measure.py --check`(경고가 있을 때만) 셋 다 이 필드로 전환했습니다. **다만 이 필드로의
-  전환 자체가 실제 사용자 화면에서 의도대로 렌더링되는지는 아직 실사용 세션으로
-  검증하지 못했습니다(신규, 미검증)** — 확인되는 대로 이 항목을 갱신합니다. 검증되기
-  전까지는 아래 `statusLine`이 유일하게 **확인된** 가시 경로라고 보수적으로 취급하세요.
-  "어시스턴트 자신의 상태 상기만으로 실제 행동이 달라지는가"도 별개로 아직 실측되지 않은
-  미검증 가정입니다 — 후속 과제.
+  렌더링된다**고 명시돼 있어 `intent_gate.py`·`habit_coaching.py`·`measure.py --check`
+  (경고가 있을 때만) 셋 다 이 필드로 전환했지만(2026-08-10), 실사용 세션에서 재확인한
+  결과 **의도대로 렌더링되지 않았습니다** — hooks가 정상 발화한 턴(`UserPromptSubmit hook
+  success` 시스템 알림으로 발화 자체를 직접 확인)에서 사용자가 "직후 화면에 코칭/게이트
+  메시지가 뜨지 않았다"고 확인해줬습니다(VSCode 확장/Agent SDK 하네스 기준, 같은 날). 아래
+  `statusLine`이 유일하게 **확인된** 가시 경로입니다. 다른 하네스(CLI, macOS Desktop Code
+  탭)에서는 재확인되지 않았으니 이 결과의 일반화에는 주의하세요. "어시스턴트 자신의 상태
+  상기만으로 실제 행동이 달라지는가"도 별개로 아직 실측되지 않은 미검증 가정입니다 — 후속
+  과제.
 - `statusLine`(measure.py 기반 토큰/비용 표시줄)은 Claude Code가 플러그인에 허용하는 필드가 아니라서(세션당 statusLine은 하나뿐이라 플러그인이 등록할 수 없음) 설치만으로는 뜨지 않습니다. 훅(`UserPromptSubmit`·`Stop`)은 설치 즉시 정상 동작하니 "설치가 안 된다"는 뜻이 아닙니다.
   쓰려면 설치 후 프로젝트(또는 `~/.claude/settings.json`)에 직접 추가하세요:
   ```json
