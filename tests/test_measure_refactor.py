@@ -144,6 +144,63 @@ def test_do_statusline_shows_blocked_token_savings():
         assert "차단절감 ~3,500tok(추정)" in out, out
 
 
+def test_gate_trips_for_session_counts_log_lines():
+    """hooks/prompt_gate.py의 gate_events_dir()와 정확히 같은 경로 규약을 읽는지 확인
+    (시너지: read_guard/grep_trim/bash_trim의 절감 로그처럼, 4슬롯 게이트의 개입 횟수도
+    같은 관측 파이프라인에 잡히게 한 것 — hooks/prompt_gate.py의 log_trip() 참고)."""
+    with tempfile.TemporaryDirectory() as plugin_data:
+        events_dir = os.path.join(plugin_data, "gate_events")
+        os.makedirs(events_dir)
+        with open(os.path.join(events_dir, "fake-session.jsonl"), "w") as f:
+            f.write(json.dumps({"event": "prompt_gate_trip", "ts": 0}) + "\n")
+            f.write(json.dumps({"event": "prompt_gate_trip", "ts": 1}) + "\n")
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            assert measure.gate_trips_for_session("fake-session") == 2
+            assert measure.gate_trips_for_session("no-such-session") == 0
+            assert measure.gate_trips_for_session(None) == 0
+        finally:
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+
+
+def test_do_statusline_shows_gate_trips():
+    """게이트 개입이 있으면 statusLine에도 노출된다(0회면 노이즈라 생략 — token_savings의
+    '차단절감' 표시와 동일한 조건부 원칙)."""
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        events_dir = os.path.join(plugin_data, "gate_events")
+        os.makedirs(events_dir)
+        with open(os.path.join(events_dir, "fake-session.jsonl"), "w") as f:
+            f.write(json.dumps({"event": "prompt_gate_trip", "ts": 0}) + "\n")
+
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        out = buf.getvalue()
+        assert "게이트개입 1회" in out, out
+
+
 def test_do_statusline_cache_savings_matches_manual_calc():
     """캐시 절감액 = cache_read_tokens × 단가 × (1 − 0.1)(캐시 미스 대비 실제 아낀 비용).
     FIXTURE: sonnet(단가 $2/MTok) 기준 cache_read 1000+5000=6000 → 6000×2e-6×0.9 = $0.0108.

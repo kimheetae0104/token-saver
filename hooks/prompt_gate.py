@@ -73,6 +73,29 @@ def write_state(session_id, state):
         pass
 
 
+def gate_events_dir():
+    """read_guard.py·grep_trim.py·bash_trim.py의 savings_log_dir()와 같은 CLAUDE_PLUGIN_DATA
+    상대경로 규약 — measure.py가 세션별로 읽어 리포트에 합산한다. 이 훅(prompt_gate)과
+    intent_gate는 지금까지 그 관측 파이프라인 밖에 있었다 — 트림·재독차단 3개 훅은 전부
+    "얼마나 절감했는지"가 리포트에 잡히는데, 정작 4슬롯 게이트가 실제로 몇 번 개입했는지는
+    어디에도 안 보였다. 같은 방식으로 기록해 같은 리포트에 노출시킨다(시너지: 서로 다른
+    훅들의 효과를 하나의 관측 표면에)."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    d = os.path.join(data_dir, "gate_events") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-gate-events")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def log_trip(session_id):
+    try:
+        path = os.path.join(gate_events_dir(), f"{session_id}.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps({"event": "prompt_gate_trip", "ts": time.time()}) + "\n")
+    except Exception:
+        pass
+
+
 def _cleanup_old(d):
     try:
         now = time.time()
@@ -121,8 +144,24 @@ def main():
     if state.get("tripped"):
         return allow()
 
+    # 같은 턴에서 도구 호출이 병렬로 여러 개 나가면(CLAUDE.md 권장 패턴) 여기까지
+    # 동시에 여러 프로세스가 도달할 수 있다 — 위 tripped 체크만으로는 read-check-write가
+    # 원자적이지 않아 다수가 동시에 통과해버리는 레이스가 있었다(실측: 8개 동시 호출 중
+    # 1개만 deny, 7개 allow). O_CREAT|O_EXCL은 파일시스템 레벨에서 원자적이므로 이 클레임을
+    # 정확히 1개 프로세스만 획득한다 — 그 프로세스만 deny, 나머지는 allow(원 설계인
+    # "1회성 트립"과 동일 — 첫 도구 호출만 막는다는 불변식을 레이스 아래서도 보장).
+    claim_path = state_path(session_id) + ".trip"
+    try:
+        fd = os.open(claim_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError:
+        return allow()
+    except Exception:
+        return allow()  # fail-open
+
     write_state(session_id, {"flagged": True, "tripped": True})
     _cleanup_old(state_dir())
+    log_trip(session_id)
     return deny(
         "모호한 요청으로 판단됨 — 먼저 의도·제약·성공기준·위임경계 파싱본을 텍스트로 "
         "밝히고 나서 다시 시도하세요."

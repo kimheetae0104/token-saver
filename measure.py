@@ -237,6 +237,29 @@ def token_savings_for_session(session_id):
     return total
 
 
+# ── 4슬롯 게이트 개입 횟수(hooks/prompt_gate.py 로그) ──
+def gate_trips_log_dir():
+    """hooks/prompt_gate.py의 gate_events_dir()와 정확히 같은 경로 규약."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "gate_events") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-gate-events")
+
+
+def gate_trips_for_session(session_id):
+    """세션별 4슬롯 게이트 개입(트립) 횟수 — 모호한 요청의 첫 도구 호출을 막아 Claude가
+    먼저 설명하게 유도한 횟수. token_savings와 별개 지표(토큰 절감이 아니라 개입 횟수)라
+    합산하지 않고 독립적으로 리포트한다. 로그 없으면 0(정상 — 게이트가 한 번도 안 걸린 세션)."""
+    path = os.path.join(gate_trips_log_dir(), f"{session_id or ''}.jsonl")
+    if not session_id or not os.path.isfile(path):
+        return 0
+    n = 0
+    with open(path, "r", errors="replace") as f:
+        for line in f:
+            if line.strip():
+                n += 1
+    return n
+
+
 def session_id_from_path(path):
     return os.path.splitext(os.path.basename(path))[0] if path else None
 
@@ -609,6 +632,8 @@ def print_report(path):
     blocked = token_savings_for_session(session_id_from_path(path))
     print(f"  차단·트림으로 애초에 컨텍스트에 안 들어간 토큰(추정): ~{fmt(blocked)}tok"
           f"  [read_guard 재독 차단 + grep_trim 트림 합산]")
+    trips = gate_trips_for_session(session_id_from_path(path))
+    print(f"  4슬롯 게이트 개입: {trips}회  [prompt_gate가 모호한 요청의 첫 도구 호출을 막은 횟수]")
     print(f"  프록시  병렬={px['parallelism']*100:.0f}%  read_thrash={px['read_thrash']*100:.0f}%"
           f"  correction={px['correction']*100:.0f}%  clarify={px['clarify']}"
           f"  verbosity={px['verbosity']:.0f}/턴  agents={px['n_agent_spawns']}")
@@ -667,7 +692,7 @@ def print_all():
         return
     print(f"\n== 세션 간 추세 ==  ({len(files)} 세션, {cost_label()})")
     print(f"  {'세션':22} {'턴':>5} {'총토큰':>12} {'적중%':>6} {'효율':>5} {'비용':>10}")
-    tot_tokens = tot_cost = tot_cache_savings = tot_blocked = 0
+    tot_tokens = tot_cost = tot_cache_savings = tot_blocked = tot_trips = 0
     hits = []
     for p in files:
         sess = parse_session(p)
@@ -678,6 +703,7 @@ def print_all():
         tot_cost += tot["cost"]
         tot_cache_savings += tot["cache_savings"]
         tot_blocked += token_savings_for_session(session_id_from_path(p))
+        tot_trips += gate_trips_for_session(session_id_from_path(p))
         hits.append(tot["cache_hit"])
         print(f"  {os.path.basename(p)[:22]:22} {tot['turns']:>5} "
               f"{fmt(tot['total_tokens']):>12} {tot['cache_hit']*100:>5.0f}% "
@@ -686,7 +712,8 @@ def print_all():
     print(f"  {'—합계/평균':22} {'':>5} {fmt(tot_tokens):>12} "
           f"{avg_hit*100:>5.0f}% {'':>5} {money(tot_cost):>10}")
     print(f"  누적 캐시 절감: {money(tot_cache_savings)}   "
-          f"누적 차단·트림 절감(추정): ~{fmt(tot_blocked)}tok")
+          f"누적 차단·트림 절감(추정): ~{fmt(tot_blocked)}tok   "
+          f"누적 게이트 개입: {tot_trips}회")
 
 
 def _pace_line(per_turn):
@@ -743,6 +770,9 @@ def statusline_text(path):
     blocked = token_savings_for_session(session_id_from_path(path))
     if blocked:
         line += f" · 차단절감 ~{fmt(blocked)}tok(추정)"
+    trips = gate_trips_for_session(session_id_from_path(path))
+    if trips:
+        line += f" · 게이트개입 {trips}회"
     if per_turn:
         line = " ".join([line] + _coaching_warnings(tot, per_turn))
     return line

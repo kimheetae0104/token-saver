@@ -116,6 +116,19 @@ def main():
     if total <= match_threshold:
         return allow()
 
+    # keep_head/keep_tail은 config.json으로 match_threshold와 별개로 재설정 가능하다
+    # (config_store.py는 셋 사이에 교차검증을 두지 않음). match_threshold를 head+tail
+    # 합보다 작게 낮추면(실측: threshold=20, head/tail 기본값 30/10 그대로) 클램프 없이는
+    # head·tail 슬라이스가 겹쳐 같은 줄이 두 번 출력되고 omitted가 음수로 찍히는 채,
+    # 결과물이 원본보다 더 커지는 역설이 생긴다(트림의 목적과 정반대). head를 total로,
+    # tail을 "남은 나머지"로 클램프해 항상 head+tail <= total을 보장한다.
+    keep_head = max(0, min(keep_head, total))
+    keep_tail = max(0, min(keep_tail, total - keep_head))
+    if total - keep_head - keep_tail <= 0:
+        # 클램프 후에도 생략할 게 없으면(head+tail==total) 트림해도 아무것도 안 줄고
+        # 안내 문구 한 줄만 더 붙어 오히려 원본보다 커진다 — 그럴 땐 원본 그대로 허용.
+        return allow()
+
     head = lines[:keep_head]
     tail = lines[-keep_tail:] if keep_tail else []
     omitted = total - len(head) - len(tail)

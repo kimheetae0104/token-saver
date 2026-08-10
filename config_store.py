@@ -112,8 +112,22 @@ def reset(hook_name=None):
 
 
 def _write(raw):
+    """고정된 '.tmp' 이름을 여러 호출이 동시에 열면, 뒤 호출이 앞 호출의 os.replace로
+    이미 사라진 tmp 파일을 다시 replace하려다 FileNotFoundError로 죽는다(실측: 16개
+    동시 set_value 중 10개 크래시). 호출마다 고유한 임시파일(mkstemp)로 그 레이스를
+    없앤다. (참고: 동시 set_value의 read-modify-write 순서 자체는 여전히 last-writer-wins
+    — 이 함수는 크래시만 없앨 뿐 그 경합까지 직렬화하진 않는다. 저빈도 설정 변경
+    유스케이스에선 감내 가능한 수준으로 판단, out of scope.)"""
     path = config_path()
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(raw, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, path)
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=os.path.basename(path) + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(raw, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise

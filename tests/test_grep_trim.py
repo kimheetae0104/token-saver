@@ -142,6 +142,19 @@ def test_env_kill_switch_wins_over_config_enabled():
         assert resp is None
 
 
+def test_low_threshold_with_default_head_tail_falls_back_to_original():
+    """실측된 버그: match_threshold를 keep_head+keep_tail 합(기본 30+10=40)보다 낮게
+    재설정하면(교차검증 없음), 클램프 없이는 head/tail 슬라이스가 겹쳐 일부 줄이 두 번
+    출력되고 omitted가 음수로 찍히며 트림 결과가 원본보다 커지는 역설이 생겼다
+    (수정 전 실측: 원본 25줄 -> 트림 결과 36줄, '-10건 생략'). 클램프하면 이 구간에서는
+    항상 omitted=0이 되므로(head+tail이 total까지만 늘어나 생략할 게 안 남음), 트림 자체를
+    건너뛰고 원본을 그대로 반환하는 게 맞다."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"match_threshold": 20})  # keep_head/tail은 기본 30/10 그대로
+        resp = _call(_lines(25), data_dir=data_dir)
+        assert resp is None, resp
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

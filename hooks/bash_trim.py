@@ -120,6 +120,15 @@ def main():
     if total <= line_threshold:
         return allow()
 
+    # grep_trim.py와 동일한 클램프(그쪽 주석 참고) — line_threshold를 config로 head+tail
+    # 합보다 작게 낮추면 클램프 없이는 head·tail 슬라이스가 겹쳐 같은 줄이 중복 출력되고
+    # omitted가 음수로 찍히는 채 결과물이 원본보다 커진다.
+    keep_head = max(0, min(keep_head, total))
+    keep_tail = max(0, min(keep_tail, total - keep_head))
+    if total - keep_head - keep_tail <= 0:
+        # grep_trim.py와 동일한 이유(그쪽 주석 참고) — 생략할 게 없으면 원본 그대로 허용.
+        return allow()
+
     head = lines[:keep_head]
     tail = lines[-keep_tail:] if keep_tail else []
     omitted = total - len(head) - len(tail)

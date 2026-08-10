@@ -5,6 +5,7 @@
 import os
 import sys
 import tempfile
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config_store  # noqa: E402
@@ -147,6 +148,33 @@ def test_reset_all_restores_everything():
         check("reset_all_read_guard", config_store.effective("read_guard")["disabled"] is False)
         check("reset_all_bash_trim", config_store.effective("bash_trim")["line_threshold"] == 200)
         check("reset_all_no_file", not os.path.isfile(config_store.config_path()))
+    finally:
+        d.cleanup()
+
+
+def test_concurrent_set_value_does_not_crash():
+    """실측된 버그: _write()가 고정된 '.tmp' 파일명을 써서, 동시 set_value 호출들이
+    같은 tmp를 두고 경합하면 뒤 호출의 os.replace가 앞 호출이 이미 옮겨버린 tmp를
+    찾다 FileNotFoundError로 죽는다(수정 전 실측: 16개 동시 호출 중 10개 크래시)."""
+    d = _isolated()
+    try:
+        errors = []
+
+        def worker(i):
+            try:
+                config_store.set_value("read_guard", "large_file_lines", 500 + i)
+            except Exception as e:
+                errors.append(repr(e))
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(16)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        check("concurrent_set_value_no_crash", errors == [], errors)
+        # 마지막 승자값 하나가 파일에 정상적으로 반영돼 있어야 한다(파일 자체는 안 깨짐).
+        cfg = config_store.effective("read_guard")
+        check("concurrent_set_value_file_intact", 500 <= cfg["large_file_lines"] <= 515, cfg)
     finally:
         d.cleanup()
 

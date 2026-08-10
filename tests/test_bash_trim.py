@@ -127,10 +127,13 @@ def test_config_disabled_skips_trim():
 
 
 def test_config_custom_line_threshold_applies():
-    """config.json으로 임계값을 낮추면 기본값(200)에선 안 걸릴 출력도 트림된다."""
+    """config.json으로 임계값을 낮추면 기본값(200)에선 안 걸릴 출력도 트림된다.
+    (기본 keep_head+keep_tail=60을 넘는 총량으로 잡아야 실제 트림이 일어난다 —
+    총량이 그 이하면 클램프가 개입해 원본을 그대로 반환한다. 그 클램프 경로는
+    test_low_threshold_with_default_head_tail_falls_back_to_original에서 별도 검증.)"""
     with tempfile.TemporaryDirectory() as data_dir:
         _write_config(data_dir, {"line_threshold": 10})
-        resp = _call(_lines(50), data_dir=data_dir)
+        resp = _call(_lines(100), data_dir=data_dir)
         assert resp is not None
         assert "생략" in resp["hookSpecificOutput"]["updatedToolOutput"]
 
@@ -150,6 +153,17 @@ def test_env_kill_switch_wins_over_config_enabled():
         _write_config(data_dir, {"disabled": False})
         resp = _call(_lines(300), disable=True, data_dir=data_dir)
         assert resp is None
+
+
+def test_low_threshold_with_default_head_tail_falls_back_to_original():
+    """grep_trim.py의 같은 클래스 버그(그쪽 테스트 참고) — line_threshold를 keep_head+
+    keep_tail 합(기본 40+20=60)보다 낮게 재설정하면 클램프 없이는 head/tail이 겹쳐
+    일부 줄이 중복 출력되고 트림 결과가 원본보다 커진다. 클램프하면 이 구간에서는 항상
+    omitted=0이 되므로 트림을 건너뛰고 원본을 그대로 반환한다."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"line_threshold": 30})  # keep_head/tail은 기본 40/20 그대로
+        resp = _call(_lines(45), data_dir=data_dir)
+        assert resp is None, resp
 
 
 def main():

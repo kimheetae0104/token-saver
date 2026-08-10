@@ -62,6 +62,21 @@ def test_non_action_short_prompt_is_noop():
     assert out == "", out
 
 
+def test_referent_only_short_request_flags_intent():
+    """'이것도 해줘'는 ACTION_WORDS 화이트리스트에 없는 범용 동사("해줘")만 쓰지만,
+    '그것도 강화해'(위 test_short_referent_request_flags_intent)와 동일하게 대상이
+    생략된 초단문 지시다. 실측된 사각지대: 수정 전엔 has_action=False로 통째로
+    스킵되어 침묵했다."""
+    out = _call("이것도 해줘")
+    assert "의도" in out, out
+
+
+def test_repeat_request_flags_intent():
+    """'다시 해줘'도 대상이 이전 대화에 암묵적으로 의존하는 같은 부류."""
+    out = _call("다시 해줘")
+    assert "의도" in out, out
+
+
 def test_malformed_stdin_fails_open():
     proc = subprocess.run([sys.executable, HOOK], input="not json{{{",
                           capture_output=True, text=True, env=dict(os.environ), timeout=10)

@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,6 +65,21 @@ def test_flagged_untripped_denies_and_trips():
         with open(os.path.join(data_dir, "prompt_gate", "sess-1.json")) as f:
             state = json.load(f)
         assert state["tripped"] is True, state
+
+
+def test_trip_logs_gate_event_for_measure_py():
+    """시너지: measure.py의 gate_trips_for_session()이 읽는 gate_events/ 로그를 트립마다
+    남긴다 — read_guard/grep_trim/bash_trim의 절감 로그와 같은 관측 파이프라인에 4슬롯
+    게이트 개입 횟수도 잡히게 한 것(measure.py 쪽 검증은 test_measure_refactor.py 참고)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_state(data_dir, "sess-1", {"flagged": True, "tripped": False})
+        _call(session_id="sess-1", data_dir=data_dir)
+        events_path = os.path.join(data_dir, "gate_events", "sess-1.jsonl")
+        assert os.path.isfile(events_path), "gate_events 로그가 안 남았다"
+        with open(events_path) as f:
+            lines = [ln for ln in f if ln.strip()]
+        assert len(lines) == 1
+        assert json.loads(lines[0])["event"] == "prompt_gate_trip"
 
 
 def test_flagged_and_tripped_allows_retry():
@@ -150,6 +166,29 @@ def test_non_dict_config_value_fails_open():
             json.dump({"prompt_gate": "oops"}, f)
         resp = _call(session_id="sess-1", data_dir=data_dir)
         assert resp is None
+
+
+def test_concurrent_flagged_calls_deny_exactly_once():
+    """CLAUDE.md가 권장하는 '독립적 도구 호출은 한 메시지에 병렬로' 패턴에서, 같은 턴에
+    도구 호출 N개가 동시에 이 훅에 도달할 수 있다. read-check-write가 원자적이지 않으면
+    다수가 동시에 tripped=false를 읽고 전부 통과해버리는 레이스가 생긴다(수정 전 실측:
+    8개 동시 호출 중 1개만 deny). O_CREAT|O_EXCL 클레임으로 정확히 1개만 deny돼야 한다."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_state(data_dir, "sess-race", {"flagged": True, "tripped": False})
+        N = 8
+        results = [None] * N
+
+        def call(idx):
+            resp = _call(session_id="sess-race", data_dir=data_dir)
+            results[idx] = "DENY" if resp is not None else "ALLOW"
+
+        threads = [threading.Thread(target=call, args=(i,)) for i in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert results.count("DENY") == 1, results
+        assert results.count("ALLOW") == N - 1, results
 
 
 def main():

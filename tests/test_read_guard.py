@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -258,6 +259,32 @@ def test_env_kill_switch_wins_over_config_enabled():
         _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir)
         r2 = _call({"file_path": f, "offset": 1, "limit": 5}, data_dir=data_dir, disable=True)
         assert r2 is None
+
+
+def test_concurrent_identical_reads_deny_all_but_one():
+    """실측된 레이스: 같은 세션에서 동일 (file_path, offset, limit) Read 여러 개가 병렬로
+    들어오면(CLAUDE.md가 권장하는 패턴 그 자체), 락 없는 read-decide-append는 TOCTOU로
+    몇 건이 서로의 기록을 못 보고 같이 통과해버린다(수정 전 실측: 8개 동시 동일요청 중
+    5회 시행에서 2회는 ALLOW가 1개가 아니라 2개 샘). 세션 단위 스핀락으로 정확히 1개만
+    ALLOW돼야 한다(첫 Read는 정당하게 허용·기록되고 나머지는 방금 기록된 동일 범위 재독으로
+    거부)."""
+    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryDirectory() as work:
+        f = _make_file(work, "race.txt", 600)
+        N = 8
+        results = [None] * N
+
+        def call(idx):
+            resp = _call({"file_path": f, "offset": 1, "limit": 50}, session_id="sess-race",
+                         data_dir=data_dir)
+            results[idx] = "DENY" if resp is not None else "ALLOW"
+
+        threads = [threading.Thread(target=call, args=(i,)) for i in range(N)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert results.count("ALLOW") == 1, results
+        assert results.count("DENY") == N - 1, results
 
 
 def main():

@@ -21,6 +21,11 @@ CONSTRAINT_WORDS = (r"(파일|모듈|디렉터리|폴더|전체|~까지|만\b|�
 SUCCESS_WORDS = r"(기준|완료되면|성공|테스트|검증|확인되면|되면 끝|승인)"
 BROAD_WORDS = r"(전체|모든|전부|대량|여러|일괄)"
 DELEGATION_WORDS = r"(서브에이전트|위임|직접|네가\s?다|전부\s?네가|병렬로|worktree|브랜치)"
+# ACTION_WORDS는 구체 동사 화이트리스트라 "이것도 해줘"·"다시 해줘"처럼 대상이 생략된
+# 초단문이 범용 동사("해줘"/"하다")만 쓰면 통째로 걸러진다 — 정작 이 훅의 동기가 된
+# "그것도 강화해"류와 같은 부류(대상 생략 프록시)인데 우연히 ACTION_WORDS의 "강화"에
+# 걸려서만 잡혔던 것. 지시대명사·반복 표현 + 초단문 조합을 대체 신호로 추가.
+REFERENT_WORDS = r"(이것|그것|저것|이거|그거|저거|이걸|그걸|저걸|다시\s?해|또\s?해)"
 
 WORD_COUNT_MAX = 25   # 이보다 길면 이미 맥락이 충분하다고 간주
 SHORT_INTENT_MAX = 3  # 이하 단어수면 대상이 이전 대화에 암묵적으로 의존할 가능성 높음
@@ -51,6 +56,13 @@ def write_flag_state(session_id, flagged):
         with open(tmp, "w") as f:
             json.dump({"flagged": flagged, "tripped": False}, f)
         os.replace(tmp, path)
+        # prompt_gate.py가 남긴 이전 턴의 원자적 클레임 파일을 정리한다 — 안 지우면
+        # 이번 턴이 새로 flagged=True여도 클레임 파일이 이미 존재해서 트립이 조용히
+        # 스킵된다(레이스 픽스의 부작용 — 클레임은 세션당 1회용이라 매 턴 리셋 필요).
+        try:
+            os.remove(path + ".trip")
+        except OSError:
+            pass
     except Exception:
         pass
 
@@ -76,6 +88,9 @@ def main():
         return
 
     has_action = re.search(ACTION_WORDS, prompt) is not None
+    if not has_action:
+        # 초단문 + 지시대명사/반복 표현 대체 신호(위 REFERENT_WORDS 주석 참고).
+        has_action = len(words) <= SHORT_INTENT_MAX and re.search(REFERENT_WORDS, prompt) is not None
     if not has_action:
         write_flag_state(session_id, False)
         return
