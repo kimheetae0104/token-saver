@@ -491,6 +491,22 @@ token-saver@token-saver-tools`로 즉시 재배포(0.3.5 → 0.3.6, 설치 캐�
    먼저 확인할 것**(`claude plugin marketplace update` → `claude plugin update` → 캐시
    grep) — 다음 세션(재시작 후)에서 이 순서대로 다시 검증할 것.
 
+**3차 정정(같은 세션, `/compact` 직후)**: 사용자가 재시작 대신 `/compact`만 실행하고 이어서
+"작업 진행해"로 재개함. compact가 곧 재시작이 아니라는 걸 프로세스 레벨에서 직접 증명:
+`ps`로 이 세션의 Claude Code 프로세스(pid 56128, `.cursor/extensions/.../native-binary/claude`,
+시작 시각 `Mon Aug 10 16:25:36 2026 KST`)를 찾고 그 자식 MCP 서버 프로세스를 확인하니
+여전히 `.../token-saver/**0.3.5**/mcp/server.py`를 실행 중이었음. `installed_plugins.json`은
+이미 `0.3.6`(`lastUpdated: 2026-08-10T07:58:25Z` UTC = `16:58:25 KST`)로 갱신돼 있으니,
+이 세션 프로세스는 **그 갱신보다 33분 먼저 떠 있었던 것** — `/compact`는 컨텍스트만
+압축할 뿐 이미 뜬 프로세스가 참조하는 플러그인 경로는 절대 바꾸지 않는다는 게 추정이 아니라
+`ps` 출력으로 직접 확인됨. 결론: 이 세션에서는 `systemMessage` 재검증이 원천적으로
+불가능(여전히 구코드 실행 중) — 다음에 필요한 건 `/compact`가 아니라 Cursor(또는 이 세션을
+띄운 하네스)를 완전히 종료 후 재시작하는 것. **교훈 3**: "재시작"을 요청할 때는 슬래시
+커맨드(`/compact`, `/clear`)로 충분하다고 오인할 수 있으니, 실제 앱/프로세스 종료-재시작이
+필요하다는 걸 명시적으로 알릴 것 — 애매하면 `ps`로 현재 세션 프로세스의 시작 시각과 플러그인
+캐시 갱신 시각을 비교해 직접 확인 가능(이번에 쓴 방법: 현재 shell PPID 체인 역추적 →
+세션 소유 claude 프로세스 pid 특정 → 그 자식 중 `token-saver/mcp/server.py` 경로로 버전 확인).
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
