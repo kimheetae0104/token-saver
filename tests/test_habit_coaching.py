@@ -14,6 +14,15 @@ HOOK = os.path.join(REPO, "hooks", "habit_coaching.py")
 
 
 def _call(prompt):
+    """systemMessage 텍스트만 반환 — 패턴 매칭 자체를 검증하는 기존 테스트들은 이 텍스트만
+    보면 되므로 그대로 재사용 가능(2026-08-10: JSON 출력으로 바뀌며 파싱 계층만 추가)."""
+    raw = _call_raw(prompt)
+    if not raw:
+        return ""
+    return json.loads(raw)["systemMessage"]
+
+
+def _call_raw(prompt):
     proc = subprocess.run([sys.executable, HOOK], input=json.dumps({"prompt": prompt}),
                           capture_output=True, text=True, timeout=10)
     assert proc.returncode == 0, f"hook exited {proc.returncode}, stderr={proc.stderr!r}"
@@ -94,6 +103,17 @@ def test_only_first_matching_pattern_reported():
     )
     assert out.count("\n") == 0
     assert "연결어" in out, out
+
+
+def test_output_is_json_with_system_message_and_context():
+    """2026-08-10 변경 핵심 검증: 이 훅의 존재 이유(사용자 코칭)가 실제로 성립하려면
+    systemMessage(사용자 화면 직접 렌더링, 공식 hooks 스키마)가 있어야 한다 — plain
+    stdout 시절엔 어시스턴트 컨텍스트에만 들어가고 사용자에게는 절대 안 보였다."""
+    raw = _call_raw("어제 그거 확인해줘 맞나요")
+    out = json.loads(raw)
+    assert out["systemMessage"], out
+    assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    assert out["hookSpecificOutput"]["additionalContext"] == out["systemMessage"]
 
 
 def test_malformed_stdin_fails_open():

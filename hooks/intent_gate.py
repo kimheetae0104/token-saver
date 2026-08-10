@@ -114,7 +114,16 @@ def main():
     if not missing:
         return
 
-    print(f"💡 착수 전 확인: {', '.join(missing)}이 불명확하면 되묻고, 명확하면 파싱본 echo 후 진행 권장.")
+    # 2026-08-10: plain stdout -> JSON. UserPromptSubmit hook의 plain stdout은 시스템
+    # 리마인더로 감싸져 어시스턴트 컨텍스트에만 들어가고 사용자 화면엔 안 뜬다 — 이 넛지는
+    # 원래 "사용자가 되묻거나 파싱본을 명확히 하게" 유도하려는 목적인데, 사용자에게 안
+    # 보이면 그 목적이 절반만 성립한다(Claude는 보고 스스로 확인할 수 있지만, 사용자가
+    # 직접 보고 먼저 명확히 해줄 기회는 없었음). top-level systemMessage로도 노출.
+    msg = f"💡 착수 전 확인: {', '.join(missing)}이 불명확하면 되묻고, 명확하면 파싱본 echo 후 진행 권장."
+    print(json.dumps({
+        "systemMessage": msg,
+        "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": msg},
+    }))
 
 
 if __name__ == "__main__":

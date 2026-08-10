@@ -789,17 +789,28 @@ def do_statusline():
     print(statusline_text(path))
 
 
-def check_line(path):
-    """세션 효율 한 줄(+조건부 경고) 문자열. 없으면 "". do_check()·MCP 서버 공용.
-    이 출력은 UserPromptSubmit hook stdout이라 시스템 리마인더로 감싸져 어시스턴트
-    컨텍스트에만 들어가고 사용자 화면에는 뜨지 않는다(공식 문서 확인, HANDOFF.md 10차) —
-    사용자에게 실제로 보이는 경고는 do_statusline()의 _coaching_warnings() 몫."""
+def _session_totals(path):
+    """parse_session + aggregate 공용 헬퍼 — check_line()과 do_check()가 같은 파일을 각자
+    두 번 파싱하지 않도록 분리(2026-08-10, do_check()의 systemMessage 노출 추가하며 리팩터).
+    파일 없음/빈 세션이면 None."""
     if not path or not os.path.isfile(path):
-        return ""
+        return None
     sess = parse_session(path)
     tot, per_turn = aggregate(sess)
     if not per_turn:
+        return None
+    return sess, tot, per_turn
+
+
+def check_line(path):
+    """세션 효율 한 줄(+조건부 경고) 문자열. 없으면 "". do_check()·MCP 서버 공용.
+    이 문자열 자체는 (do_check()가 hookSpecificOutput.additionalContext로 감싸 어시스턴트
+    컨텍스트에 주입하므로) 사용자 화면에는 뜨지 않는다 — 사용자에게 보이는 경고는
+    do_statusline()의 _coaching_warnings() 또는 do_check()의 systemMessage 몫."""
+    data = _session_totals(path)
+    if not data:
         return ""
+    sess, tot, per_turn = data
     px = proxies(sess, per_turn)
     score = efficiency_score(tot, px)
     msgs = [f"⟢ 턴{tot['turns']} · {fmt(tot['total_tokens'])}tok · "
@@ -809,15 +820,35 @@ def check_line(path):
 
 
 def do_check():
-    """UserPromptSubmit hook용: stdin JSON → check_line() 결과 출력(있으면)."""
+    """UserPromptSubmit hook용: stdin JSON -> Claude 컨텍스트 주입(hookSpecificOutput.
+    additionalContext, 기존 plain-stdout과 동일 효과) + 경고가 있으면 top-level
+    systemMessage로 사용자 화면에도 직접 노출(2026-08-10 추가).
+
+    공식 hooks 스키마(code.claude.com/docs/en/hooks)에 systemMessage는 전체 이벤트 공통
+    필드로 명시돼 있고, Claude 컨텍스트가 아니라 사용자 화면에 직접 렌더링된다 — "설치만으로는
+    statusLine 없이 아무것도 안 보인다"였던 기존 제한사항을 경고에 한해 해소할 수 있는 경로.
+    '⟢' 요약 라인 전체를 매 턴 그대로 노출하면 statusLine 대체품처럼 스팸이 되므로,
+    _coaching_warnings()가 실제로 뭔가 있을 때만 systemMessage를 싣는다. 실사용 세션에서
+    실제 렌더링 여부는 아직 미검증(신규) — 확인되면 README "알려진 제한사항" 갱신."""
     try:
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
     path = payload.get("transcript_path") or latest_session()
-    line = check_line(path)
-    if line:
-        print(line)
+    data = _session_totals(path)
+    if not data:
+        return
+    sess, tot, per_turn = data
+    px = proxies(sess, per_turn)
+    score = efficiency_score(tot, px)
+    warnings = _coaching_warnings(tot, per_turn)
+    line = " ".join([f"⟢ 턴{tot['turns']} · {fmt(tot['total_tokens'])}tok · "
+                      f"hit {tot['cache_hit']*100:.0f}% · {money(tot['cost'])} · 효율{score:.0f}"]
+                     + warnings)
+    out = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": line}}
+    if warnings:
+        out["systemMessage"] = " ".join(warnings)
+    print(json.dumps(out))
 
 
 def capture_failures_text(path, data_dir=None):

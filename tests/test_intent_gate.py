@@ -13,6 +13,15 @@ HOOK = os.path.join(REPO, "hooks", "intent_gate.py")
 
 
 def _call(prompt):
+    """systemMessage 텍스트만 반환(2026-08-10: JSON 출력으로 바뀜, hooks/habit_coaching.py와
+    같은 이유) — 기존 부분문자열 검증 테스트들은 그대로 재사용."""
+    raw = _call_raw(prompt)
+    if not raw:
+        return ""
+    return json.loads(raw)["systemMessage"]
+
+
+def _call_raw(prompt):
     proc = subprocess.run([sys.executable, HOOK], input=json.dumps({"prompt": prompt}),
                           capture_output=True, text=True, env=dict(os.environ), timeout=10)
     assert proc.returncode == 0, f"hook exited {proc.returncode}, stderr={proc.stderr!r}"
@@ -75,6 +84,16 @@ def test_repeat_request_flags_intent():
     """'다시 해줘'도 대상이 이전 대화에 암묵적으로 의존하는 같은 부류."""
     out = _call("다시 해줘")
     assert "의도" in out, out
+
+
+def test_output_is_json_with_system_message_and_context():
+    """hooks/habit_coaching.py와 같은 이유(2026-08-10) — systemMessage가 있어야 사용자
+    화면에 직접 보인다. 이전엔 plain stdout이라 어시스턴트 컨텍스트에만 들어갔음."""
+    raw = _call_raw("더 강화시켜")
+    out = json.loads(raw)
+    assert out["systemMessage"], out
+    assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    assert out["hookSpecificOutput"]["additionalContext"] == out["systemMessage"]
 
 
 def test_malformed_stdin_fails_open():

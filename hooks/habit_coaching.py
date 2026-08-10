@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """UserPromptSubmit hook: 사용자 채팅 습관에서 토큰 낭비 패턴 감지.
 장황, 방향전환, 불필요한 재확인 등을 한 줄 피드백으로 제시.
+
+2026-08-10: 이 훅은 "사용자"의 습관을 코칭하는 게 목적인데, 기존엔 plain stdout만
+출력했다 — UserPromptSubmit hook의 plain stdout은 공식 문서상 시스템 리마인더로
+감싸져 어시스턴트 컨텍스트에만 들어가고 사용자 화면엔 안 뜬다(measure.py의
+check_line()과 같은 문제, HANDOFF.md 10차 근본 설계 오류). 즉 이 훅은 지금까지
+사용자에게 실제로는 절대 도달하지 못하는 피드백을 만들고 있었다 — 목적 자체가
+성립 안 하는 상태였음. top-level systemMessage(전체 이벤트 공통 필드, 사용자 화면에
+직접 렌더링)로 전환해 실제로 사용자에게 보이게 한다.
 """
 import json
 import re
@@ -60,7 +68,13 @@ def main():
             feedback = "💬 요청 전 배경이 150자↑ — 핵심만 앞에, 나머지 요청 중 언급"
 
     if feedback:
-        print(feedback)
+        print(json.dumps({
+            "systemMessage": feedback,
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": feedback,
+            },
+        }))
 
 
 if __name__ == "__main__":

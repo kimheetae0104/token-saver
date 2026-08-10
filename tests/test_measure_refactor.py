@@ -493,6 +493,63 @@ def test_similar_desc_still_detects_true_escalations():
     )
 
 
+def _run_do_check(payload):
+    import io
+    import contextlib
+
+    buf = io.StringIO()
+    old_stdin = sys.stdin
+    try:
+        sys.stdin = io.StringIO(json.dumps(payload))
+        with contextlib.redirect_stdout(buf):
+            measure.do_check()
+    finally:
+        sys.stdin = old_stdin
+    out = buf.getvalue().strip()
+    return json.loads(out) if out else None
+
+
+def test_do_check_wraps_context_without_system_message_when_no_warning():
+    """2026-08-10: do_check()가 plain stdout에서 JSON(hookSpecificOutput.additionalContext)
+    으로 바뀌었다 — Claude 컨텍스트 주입 효과는 기존과 동일해야 하고, 경고가 없으면
+    systemMessage 키 자체가 없어야 한다(매 턴 스팸 방지)."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        out = _run_do_check({"transcript_path": path})
+        assert out is not None
+        assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+        assert out["hookSpecificOutput"]["additionalContext"] == measure.check_line(path)
+        assert "systemMessage" not in out, out
+
+
+def test_do_check_emits_system_message_when_warning_present():
+    """공식 hooks 스키마상 systemMessage는 Claude 컨텍스트가 아니라 사용자 화면에 직접
+    렌더링되는 전체 이벤트 공통 필드(code.claude.com/docs/en/hooks) — 컨텍스트 비대
+    경고처럼 실제로 알릴 게 있을 때만 실어야 한다."""
+    big_input_line = (
+        '{"message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}], '
+        '"usage": {"input_tokens": 250000, "cache_creation_input_tokens": 0, '
+        '"cache_read_input_tokens": 0, "output_tokens": 50}, '
+        '"model": "claude-sonnet-5-20260101"}, "timestamp": "2026-08-05T00:00:04Z"}\n'
+    )
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE + big_input_line)
+        out = _run_do_check({"transcript_path": path})
+        assert out is not None
+        assert "systemMessage" in out, out
+        assert "컨텍스트" in out["systemMessage"], out
+        # additionalContext는 여전히 전체 라인(경고 포함) — systemMessage는 경고만의 부분집합.
+        assert out["systemMessage"] in out["hookSpecificOutput"]["additionalContext"]
+
+
+def test_do_check_silent_when_no_transcript():
+    assert _run_do_check({"transcript_path": "/no/such/file.jsonl"}) is None
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0
