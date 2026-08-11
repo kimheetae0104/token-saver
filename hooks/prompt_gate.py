@@ -162,9 +162,14 @@ def main():
     write_state(session_id, {"flagged": True, "tripped": True})
     _cleanup_old(state_dir())
     log_trip(session_id)
+    # Markdown 볼드+불릿 포맷: 실험21(N=20, blind 채점)에서 XML/HTML 대비 컴플라이언스
+    # 동률 최고(100%) + 토큰 최저로 확정 우승 — experiments/PROTOCOL.md 실험21 참고.
     return deny(
-        "진행하기 전에 확인이 필요해요 — 무엇을 할지, 지켜야 할 제약이 있는지, 뭐가 되면 "
-        "끝인지(범위가 넓다면 직접 할지 위임할지도) 먼저 간단히 설명한 다음 다시 시도해주세요."
+        "진행하기 전에 4가지를 먼저 짚고 다시 시도해주세요.\n"
+        "- **Intent**: 무엇을 할지\n"
+        "- **Constraints**: 지켜야 할 제약이 있는지\n"
+        "- **Success criteria**: 뭐가 되면 끝인지\n"
+        "- **Delegation boundary**: 범위가 넓다면 직접 할지 위임할지"
     )
 
 
