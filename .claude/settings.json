@@ -1,25 +1,7 @@
 {
-  "_comment": "토큰 세이버 툴킷 — 이 프로젝트에서 Claude Code 실행 시 statusline·hook 활성화. 경로는 $CLAUDE_PROJECT_DIR 기준.",
+  "_comment": "토큰 세이버 툴킷 — statusLine만 여기서 활성화(플러그인이 등록 못 하는 필드라서 필수). hooks는 유저스코프로 설치된 token-saver 플러그인이 이미 제공하므로 여기 중복 등록하지 않음(2026-08-10, 중복 발화 확인 후 제거) — 경로는 $CLAUDE_PROJECT_DIR 기준.",
   "statusLine": {
     "type": "command",
     "command": "python3 \"$CLAUDE_PROJECT_DIR/measure.py\" --statusline"
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/measure.py\" --check" },
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/intent_gate.py\"" },
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/habit_coaching.py\"" }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/hooks/session_autopsy.sh\"" }
-        ]
-      }
-    ]
   }
 }
