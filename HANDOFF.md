@@ -644,6 +644,32 @@ production_failures.jsonl 142줄로 성장 없음(2026-08-08 이후 신규 없�
 $1,530.24, 사다리 3.09배, 실패율~10%)는 재측정해도 README 주장과 일관이라 이 커밋에서는
 수치 변경 없음(보고만, 커밋 없음).
 
+## Phase 2 — 아이디어 우선순위 + ladder_gate 버그 확정 (2026-08-11, 19차 후속)
+Task5(검증→로드맵 플랜 마지막 태스크)에서 위 문단이 "판단 보류"로 남긴 ladder_gate
+N=0을 브리프 지시대로 직접 파고든 결과 **표본 부족이 아니라 재현 가능한 버그**로 격상
+확인. 실제 플러그인 데이터 디렉터리에 `ladder_gate` 상태 파일 106개가 쌓여 있고 그중
+3개는 `consulted: true`(1차 게이트=컨설트 강제는 정상)지만 **106개 전부
+`recommended_tier`가 비어 있다** — 이번 세션 자신의 트랜스크립트에서 확인한 실제 MCP
+응답은 `content`가 `[{"type":"text","text":"추천: ..."}]` **리스트**로 오는데,
+`hooks/ladder_gate.py`의 `_extract_recommended_tier()`는 `str`/`dict`만 처리하고
+`list` 분기가 없어 매번 `None`을 반환(재현 확인됨). 파급: "추천/실제 불일치 1회
+재확인"(커밋 `1b8668d`)과 "실사용 로깅"(커밋 `3ec5460`/`5d475a4`) 두 강화 기능이
+프로덕션에서 전부 죽은 코드였다. 코드 변경 없음(이번 태스크는 조사·기록까지, 수정은
+다음 세션 1순위로 넘김).
+
+이어서 소싱 3갈래(Phase1-3 실측 갭·HANDOFF 기존 블록 항목·신규 가설)로 우선순위 표
+작성, 전문은
+`docs/superpowers/specs/2026-08-11-verification-and-roadmap-design.md`의
+"Phase 2 결과" 절 참고. **다음에 고를 것(순위 1~2위)**:
+1. **ladder_gate 추천 티어 파싱 버그 수정** — `_extract_recommended_tier()`에 `list`
+   분기 추가(~10줄), 실제 payload 형태로 회귀테스트 교체. 가치 높음·비용 낮음·블로커 없음.
+2. **문서 인용 정합성 자동 검증 스크립트** — TOKEN-GUIDE/README가 "실험N"을 인용할 때
+   PROTOCOL.md 실존 여부를 grep으로 결정론 검사(Task2 오류 재발 방지, AI-YAGNI 준수).
+
+18차가 "블록됨"으로 남긴 3항목(`verify_fails.py` 재검증·`many_agents` 재보정·병렬
+haiku 겹침)은 Task3 재측정(production_failures.jsonl 142줄, 변화 없음)으로도 전제가
+안 바뀌어 그대로 블록 유지 — 세션 누적 대기, 액션 불가.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
