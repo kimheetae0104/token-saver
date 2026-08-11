@@ -495,6 +495,51 @@ def test_user_correction_follow_does_not_duplicate_across_sequential_haiku_tasks
         assert correction_candidates[0]["dedup_key"] == "corr:tool-2", correction_candidates[0]
 
 
+def test_escalation_pair_does_not_duplicate_across_unrelated_earlier_haiku():
+    """capture_failures()의 escalation_pair 경로 자체는 지금까지 테스트 커버리지가 0이었다
+    (grep 확인) — user_correction_follow와 같은 클래스의 버그가 있는지 처음 검증한다.
+    haiku 위임 2건(서로 무관, 우연히 설명이 같은 재발 버그 유형)이 있고 그 뒤에 진짜
+    에스컬레이션(sonnet) 1건만 오면, 그 에스컬레이션은 가장 가까운(직전) haiku 하나에만
+    귀속돼야 한다 — 무관한 더 이전 haiku까지 같은 에스컬레이션에 중복 매칭되면 안 된다."""
+    with tempfile.TemporaryDirectory() as d:
+        main_path = os.path.join(d, "main-session.jsonl")
+        with open(main_path, "w") as f:
+            f.write(FIXTURE)
+
+        # haiku 위임 A — 무관한 이전 시도, 우연히 같은 유형의 버그 설명
+        _write_subagent(main_path, "task-a", "tool-a", "claude-haiku-4-5-20251001",
+                         "general-purpose", input_tokens=50, output_tokens=30,
+                         ts_start="2026-08-05T00:00:02Z", ts_end="2026-08-05T00:00:05Z")
+        # haiku 위임 B — task-a와 무관하지만 설명이 같음, 진짜 에스컬레이션 직전
+        _write_subagent(main_path, "task-b", "tool-b", "claude-haiku-4-5-20251001",
+                         "general-purpose", input_tokens=50, output_tokens=30,
+                         ts_start="2026-08-05T00:00:06Z", ts_end="2026-08-05T00:00:09Z")
+        # 진짜 에스컬레이션 — task-b 직후, 설명이 둘 다와 동일(자카드 1.0)
+        _write_subagent(main_path, "task-c", "tool-c", "claude-sonnet-5-20260101",
+                         "general-purpose", input_tokens=50, output_tokens=30,
+                         ts_start="2026-08-05T00:00:10Z", ts_end="2026-08-05T00:00:15Z")
+
+        # description을 세 태스크 전부 동일하게(자카드 1.0) 덮어써서 유사도 매칭을 확실히 함
+        for task_id in ("task-a", "task-b", "task-c"):
+            meta_path = os.path.join(
+                os.path.splitext(main_path)[0], "subagents", task_id,
+                f"agent-{task_id}.meta.json")
+            with open(meta_path) as f:
+                meta = json.load(f)
+            meta["description"] = "로그인 파싱 버그 수정"
+            with open(meta_path, "w") as f:
+                json.dump(meta, f)
+
+        log_path = os.path.join(d, "test-failures.jsonl")
+        candidates = measure.capture_failures(main_path, log_path=log_path)
+
+        escalation_candidates = [c for c in candidates if c["type"] == "escalation_pair"]
+        assert len(escalation_candidates) == 1, (
+            f"expected exactly 1 (escalation attributed to the nearest haiku only), "
+            f"got {len(escalation_candidates)}: {escalation_candidates}")
+        assert escalation_candidates[0]["dedup_key"] == "esc:tool-b:tool-c", escalation_candidates[0]
+
+
 def test_similar_desc_filters_re_review_templates():
     """실험13 위양성 사례 2건 — 재검토 정형 문구가 반복되는 워크플로우에서 오탐 방지.
     수정 전: self-describing 단어(re, review, fix)만 겹쳐서 자카드 0.5+ 오탐

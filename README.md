@@ -13,13 +13,13 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
 나오는 결과물의 품질까지 같이 끌어올리는 것** — 실험에서 정답률·품질 손실 없이 비용만
 6.8~7.6배 줄어든 사례가 실측됐습니다([상태](#상태), 근거는 PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.12-blue)
+![version](https://img.shields.io/badge/version-0.3.13-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-209%2F209_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-210%2F210_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.12, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.13, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -63,7 +63,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.12, 초기 단계입니다.
+현재 v0.3.13, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
@@ -200,6 +200,10 @@ flowchart TD
   사용자 교정 매칭도 "다음 haiku 위임이 시작되기 전까지"로 폭을 좁혀(2026-08-11), haiku
   여러 건이 순차 실행되고 그 뒤에 진짜 교정 메시지가 하나만 왔을 때 모든 haiku 레코드에
   중복 매칭되던 걸 막았다(동시 스폰된 haiku끼리 겹치는 경우는 아직 못 잡음, 실측 사례 없음).
+  같은 클래스 버그가 `escalation_pair`에도 있었다(2026-08-11 발견·수정) — 무관한 두
+  haiku가 우연히 설명이 비슷하고 그 뒤에 진짜 에스컬레이션 하나만 오면, 그 에스컬레이션이
+  가장 가까운 haiku가 아니라 둘 다에 중복 매칭됐음. 이 경로는 그때까지 테스트 커버리지가
+  0이었다(재현 테스트로 처음 확인).
 
 ## 설치
 

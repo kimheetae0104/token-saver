@@ -16,13 +16,13 @@ quality of what you get for that cost**. Experiments have measured cases where c
 dropped 6.8–7.6× with zero loss in correctness or quality ([Status](#status), evidence
 in PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.12-blue)
+![version](https://img.shields.io/badge/version-0.3.13-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-209%2F209_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-210%2F210_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **Status: v0.3.12, early stage** — calibrated on N=6–7 measured sessions, no
+> **Status: v0.3.13, early stage** — calibrated on N=6–7 measured sessions, no
 > third-party validation, no vendor claims — only measured facts get recorded. See
 > [Status](#status) for detail.
 
@@ -70,7 +70,7 @@ trip even when a turn fires several tool calls in parallel — concurrency proof
 
 ## Status
 
-Currently v0.3.12, early stage.
+Currently v0.3.13, early stage.
 
 - Values are calibrated on **N=6–7 sessions**. No third-party validation (self-measured
   only).
@@ -233,7 +233,11 @@ flowchart TD
   the next Haiku delegation starts," preventing a single real correction message that
   follows several sequential Haiku attempts from double-matching all of them (this
   still can't catch two Haiku tasks spawned concurrently that overlap — no observed
-  case yet).
+  case yet). The same class of bug existed in `escalation_pair` (found and fixed
+  2026-08-11) — two unrelated Haiku attempts with coincidentally similar descriptions,
+  followed by one real escalation, would both get matched to it instead of just the
+  nearer one. This path had zero test coverage until then (found via a reproduction
+  test).
 
 ## Install
 

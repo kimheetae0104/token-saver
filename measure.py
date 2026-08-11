@@ -767,6 +767,10 @@ def capture_failures(main_path, log_path=None):
         for rj in records[i + 1:]:
             if "baseline" in rj["description"].lower():
                 continue  # 의도적 A/B 비교(실험) — 실패로 인한 재위임이 아님
+            if rj["tier"] == "haiku":
+                break  # 진짜 haiku가 먼저 오면 그 이후 에스컬레이션은 그 haiku 소관 —
+                       # 무관한 더 이전 haiku(ri)까지 같은 에스컬레이션에 중복 매칭 방지
+                       # (user_correction_follow와 같은 클래스 버그, 2026-08-11 발견·수정)
             if rj["tier"] in ("sonnet", "opus", "fable") and _similar_desc(ri["description"], rj["description"]):
                 key = f"esc:{ri['tool_use_id']}:{rj['tool_use_id']}"
                 if key not in existing:
