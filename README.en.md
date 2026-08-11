@@ -16,13 +16,13 @@ quality of what you get for that cost**. Experiments have measured cases where c
 dropped 6.8–7.6× with zero loss in correctness or quality ([Status](#status), evidence
 in PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.13-blue)
+![version](https://img.shields.io/badge/version-0.3.14-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-210%2F210_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-215%2F215_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **Status: v0.3.13, early stage** — calibrated on N=6–7 measured sessions, no
+> **Status: v0.3.14, early stage** — calibrated on N=6–7 measured sessions, no
 > third-party validation, no vendor claims — only measured facts get recorded. See
 > [Status](#status) for detail.
 
@@ -70,7 +70,7 @@ trip even when a turn fires several tool calls in parallel — concurrency proof
 
 ## Status
 
-Currently v0.3.13, early stage.
+Currently v0.3.14, early stage.
 
 - Values are calibrated on **N=6–7 sessions**. No third-party validation (self-measured
   only).
@@ -186,6 +186,20 @@ flowchart TD
   zero — they're counted separately). Since the log has no exact tool_use_id link, the
   match is a timestamp approximation, not a guaranteed 1:1 — evidence and tests in
   `tests/test_measure_refactor.py` (`test_ladder_gate_cost_comparison_*`).
+- **Blocks redundant `token_saver_check` calls** (`check_gate.py`, PreToolUse,
+  matcher: `token_saver_check`, 2026-08-11)
+  In environments where hooks fire normally (CLI/IDE, macOS Desktop), the `⟢`
+  efficiency line is already injected into context every turn, so calling
+  `token_saver_check` is always redundant. This used to be left to a prompt-level
+  instruction ("skip the call if the line is already visible", Skill
+  `token-saver:rules`) — but a real transcript showed the model calling it
+  redundantly anyway even while hooks were firing normally (Experiment 11). This
+  hook moves that judgment from the prompt into code: **the mere fact that this
+  PreToolUse hook ran is deterministic proof hooks are alive** in this environment,
+  so it denies unconditionally. In environments where hooks genuinely don't fire
+  (Windows Desktop Code tab), this hook itself never runs, so the call passes
+  through automatically — no separate branch needed, the hook's own existence is
+  the signal.
 - **DIY config** (`config_store.py` + MCP `token_saver_config_*`)
   Look up and change the thresholds and kill switches of the hooks above without
   redeploying them. The env kill switch (`TOKEN_SAVER_DISABLE_*`) always takes
@@ -319,19 +333,23 @@ place:
    the `token_saver_check`/`token_saver_autopsy` tools).
 
 <details>
-<summary>Correction history + a known flaw (mitigation attempted, unverified)</summary>
+<summary>Correction history + the flaw and its fix (2026-08-11)</summary>
 
 Opening a real macOS Desktop Code-tab session's actual transcript showed the
 `UserPromptSubmit` hook firing normally, printing the `⟢` efficiency line as expected
 (`experiments/PROTOCOL.md`, Experiment 11).
 
-**Known flaw**: the Skill's self-detection instruction — "skip the MCP call if the
+**Past flaw**: the Skill's self-detection instruction — "skip the MCP call if the
 hooks line is already visible" — has been measured to not always hold up in practice
-(the model attempting a redundant MCP call even while hooks are firing normally).
-2026-08-09, `skills/rules/SKILL.md` was strengthened with a numbered gate that
-explicitly asks, every turn, "is the `⟢` line actually present this turn" — but whether
-this instruction is actually followed still needs reconfirming against real usage
-transcripts — not done yet.
+(the model attempting a redundant MCP call even while hooks are firing normally, which
+even failed inside Desktop's auto-mode safety check).
+
+**Fix (2026-08-11)**: this judgment moved from the prompt into code — the new
+`hooks/check_gate.py` (PreToolUse, matcher: `token_saver_check`) denies the redundant
+call deterministically in environments where hooks fire normally, using the fact that
+this hook itself ran as proof hooks are alive. In environments where hooks genuinely
+don't fire (Windows Desktop Code tab), this hook never runs either, so the call passes
+through automatically — no separate branch needed.
 
 Full design: `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md`.
 Measured results: `experiments/PROTOCOL.md`, Experiment 11.

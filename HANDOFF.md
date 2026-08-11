@@ -539,6 +539,30 @@ Claude가 보는 컨텍스트로 추가된다"고 별도 명시함 — `systemMe
 15차에서 막은 셈. 향후 `systemMessage` 관련 문서 재확인 시 이벤트별 예외 조항을
 먼저 볼 것(일반 서술만 보고 특정 이벤트에 적용 안 되는 경우가 실제로 있었음).
 
+## check_gate.py — 자기감지 결함을 코드로 이관, 문구 정정 (2026-08-11, 16차)
+사용자가 "클로드 데스크탑 앱 코드에서도 적용 안 되는거지?"라고 물어와 처음엔 잘못 답함
+(hooks 자체가 Desktop에서 원천 불가라고) — `skills/rules/SKILL.md`의 과일반화된 문구를
+근거로 답했다가, 사용자가 "터미널이랑 데스크탑 앱 코드랑 똑같다며"라고 정정 지적. 실제
+확인해보니 README.md는 이미 실험11로 Windows 한정임을 정확히 반영하고 있었는데,
+`skills/rules/SKILL.md`·`mcp/server.py`·`config_store.py` 세 곳의 docstring/description은
+그 정정 이전 문구("Desktop Code 탭"을 뭉뚱그려 hooks-불가로 서술)가 그대로 남아있었다 —
+전부 Windows 한정으로 고침.
+
+문구 정정과 별개로 사용자가 "기능 개선"을 요청 — 실험11에서 미착수로 남아있던 처방
+("자기감지 지시가 신뢰할 수 없음이 실측으로 드러남... hooks 존재 여부를 모델이 아니라
+결정론적으로 판별할 방법을 찾아야 함")을 이번에 실제로 구현. 새 훅
+`hooks/check_gate.py`(PreToolUse, matcher: `token_saver_check`)가 **이 훅 자체가
+실행됐다는 사실을 hooks 생존의 결정론적 증거로 삼아** `token_saver_check` 중복 호출을
+무조건 deny — hooks가 정말 없는 환경(Windows Desktop Code 탭)에서는 이 훅도 안 뜨므로
+자동으로 fail-open. TDD로 구현(`tests/test_check_gate.py`, 5개), `config_store.py`에
+`check_gate` DEFAULTS 추가, `hooks.json`에 배선. 전체 스위트 215/215(기존 210 + 신규 5),
+`claude plugin validate` 통과, v0.3.14.
+
+이 흐름 중 사용자가 별개 아이디어(XML vs HTML vs Markdown 프롬프트 포맷이 4슬롯 게이트
+지시문에 미치는 효과·토큰 비교 실험)를 "계획해봐"로 요청 — **설계만 제시, 미실행**(서브에이전트
+N회 실비용 발생하는 실험이라 승인 필요). 다음 세션에서 "진행해"를 받으면
+`experiments/PROTOCOL.md`에 실험21로 등록하고 fixture부터 만들 것.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).

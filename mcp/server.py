@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""token-saver MCP 서버 — Desktop Code 탭에서 hooks 대신 능동 계측을 복원한다.
+"""token-saver MCP 서버 — hooks 미발화 환경에서 hooks 대신 능동 계측을 복원한다.
 
-Desktop 앱 Code 탭(Claude Code를 stream-json server/API 모드로 구동)은 hooks가
-발화하지 않는다(desktop/desktop#22138, closed as not planned) — 하지만 MCP는 살아있다
-(docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md의 "사전 검증"
-섹션에서 실측 확인, 2026-08-05). 이 서버가 measure.py의 계측 로직을 툴로 노출해 그 공백을
-best-effort로 메운다.
+Windows Desktop 앱 Code 탭(Claude Code를 stream-json server/API 모드로 구동)은 hooks가
+발화하지 않는다(desktop/desktop#22138, Windows 11 한정 재현, closed as not planned) —
+macOS Desktop Code 탭은 hooks가 CLI/IDE와 동일하게 정상 발화한다(experiments/PROTOCOL.md
+실험11, 2026-08-06 정정 — 초기엔 Desktop 전체 문제로 과일반화했던 오류). hooks가 실제로
+안 뜨는 환경이어도 MCP는 살아있다(docs/superpowers/specs/
+2026-08-05-desktop-active-measurement-design.md의 "사전 검증" 섹션에서 실측 확인,
+2026-08-05). 이 서버가 measure.py의 계측 로직을 툴로 노출해 그 공백을 best-effort로 메운다.
 
 의존성 없음(mcp/@modelcontextprotocol/sdk 미설치 환경 대응) — JSON-RPC 2.0을
 stdin/stdout에 한 줄씩(뉴라인 구분, Content-Length 프레이밍 아님) 손수 구현.
@@ -45,9 +47,10 @@ def _resolve_transcript():
 
 
 def tool_check(args=None):
-    """statusline_text()(check_line()이 아님) 사용 — Desktop Code 탭은 statusLine hook도
-    안 뜨므로, 이 MCP 툴이 사람이 실제로 보는 유일한 경로다. check_line()은 어시스턴트
-    컨텍스트 전용 비가시 채널이라 캐시절감·차단절감 세그먼트가 빠져 있어 여기엔 안 맞는다."""
+    """statusline_text()(check_line()이 아님) 사용 — Windows Desktop Code 탭은 statusLine
+    hook도 안 뜨므로, 이 MCP 툴이 사람이 실제로 보는 유일한 경로다(macOS Desktop·CLI/IDE는
+    statusLine 정상 동작). check_line()은 어시스턴트 컨텍스트 전용 비가시 채널이라
+    캐시절감·차단절감 세그먼트가 빠져 있어 여기엔 안 맞는다."""
     path, err = _resolve_transcript()
     if err:
         return err
@@ -67,20 +70,20 @@ def tool_autopsy(args=None):
 
 
 def tool_config_get(args=None):
-    """read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate의 현재 유효 설정(기본값 + DIY
-    오버라이드)을 사람이 읽을 수 있게 요약한다. Desktop Code 탭은 hooks가 안 뜨므로, 값을
-    바꿔도 CLI/IDE 세션에서 그 hook이 다음번 실행될 때 반영된다 — Desktop 자체의 자동
-    동작에는 영향 없음을 명시."""
+    """read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate·check_gate의 현재 유효 설정
+    (기본값 + DIY 오버라이드)을 사람이 읽을 수 있게 요약한다. Windows Desktop Code 탭은
+    hooks가 안 뜨므로, 값을 바꿔도 CLI/IDE·macOS Desktop 세션에서 그 hook이 다음번
+    실행될 때 반영된다 — Windows Desktop 자체의 자동 동작에는 영향 없음을 명시."""
     overrides = config_store.load_raw()
-    lines = ["read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate 현재 설정(*=DIY로 바뀐 값, 나머지는 기본값):"]
+    lines = ["read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate·check_gate 현재 설정(*=DIY로 바뀐 값, 나머지는 기본값):"]
     for hook_name, cfg in config_store.get_all().items():
         changed = overrides.get(hook_name, {})
         parts = [f"{k}={v}{'*' if k in changed else ''}" for k, v in cfg.items()]
         lines.append(f"  {hook_name}: " + ", ".join(parts))
     lines.append(f"설정 파일: {config_store.config_path()}")
     lines.append(
-        "참고: Desktop Code 탭은 hooks가 안 뜨므로 이 값은 CLI/IDE 세션에서만 실제로 "
-        "적용된다(env kill switch TOKEN_SAVER_DISABLE_*가 항상 최우선)."
+        "참고: Windows Desktop Code 탭은 hooks가 안 뜨므로 이 값은 CLI/IDE·macOS Desktop "
+        "세션에서만 실제로 적용된다(env kill switch TOKEN_SAVER_DISABLE_*가 항상 최우선)."
     )
     return "\n".join(lines)
 
@@ -120,8 +123,10 @@ TOOLS = {
     "token_saver_check": {
         "description": (
             "이 프로젝트의 현재 세션 토큰/비용/캐시적중률/효율점수를 한 줄로 반환한다. "
-            "CLI/IDE에서는 시스템 컨텍스트에 '⟢ 턴...' 줄이 이미 자동으로 보이므로(훅 정상 "
-            "발화 중) 이 툴을 다시 호출하지 말 것 — Desktop Code 탭처럼 그 줄이 안 보일 때만 호출."
+            "CLI/IDE·macOS Desktop에서는 시스템 컨텍스트에 '⟢ 턴...' 줄이 이미 자동으로 "
+            "보이므로(훅 정상 발화 중, hooks/check_gate.py가 이 경우 호출 자체를 결정론적으로 "
+            "막는다) 이 툴을 다시 호출하지 말 것 — Windows Desktop Code 탭처럼 hooks가 안 뜨는 "
+            "환경에서 그 줄이 안 보일 때만 호출."
         ),
         "handler": tool_check,
         "input_schema": EMPTY_SCHEMA,

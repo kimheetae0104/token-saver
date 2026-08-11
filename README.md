@@ -13,13 +13,13 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
 나오는 결과물의 품질까지 같이 끌어올리는 것** — 실험에서 정답률·품질 손실 없이 비용만
 6.8~7.6배 줄어든 사례가 실측됐습니다([상태](#상태), 근거는 PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.13-blue)
+![version](https://img.shields.io/badge/version-0.3.14-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-210%2F210_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-215%2F215_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.13, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.14, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -63,7 +63,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.13, 초기 단계입니다.
+현재 v0.3.14, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
@@ -162,6 +162,16 @@ flowchart TD
   실측치로만 세션 리포트에 노출한다(대응 못한 이벤트는 0으로 지어내지 않고 별도 건수로
   표시). tool_use_id 정확 연결이 로그에 없어 타임스탬프 근사 매칭이라 완벽한 1:1은
   아님 — 근거·테스트는 `tests/test_measure_refactor.py`(`test_ladder_gate_cost_comparison_*`).
+- **`token_saver_check` 중복 호출 차단** (`check_gate.py`, PreToolUse matcher:
+  `token_saver_check`, 2026-08-11)
+  hooks가 정상 발화하는 환경(CLI/IDE·macOS Desktop)에서는 `⟢` 효율 줄이 매 턴 이미
+  컨텍스트에 들어가 있어 `token_saver_check` MCP 툴 호출이 항상 중복이다 — 예전엔 이
+  판단을 "줄이 보이면 호출하지 마라"는 프롬프트 지시(Skill `token-saver:rules`)에만
+  맡겼는데, hooks 정상 발화 중에도 모델이 중복 호출을 시도하는 사례가 실측됐다(실험11).
+  이 훅은 그 판단을 코드로 옮긴다 — **이 PreToolUse 훅 자체가 실행됐다는 사실이 hooks가
+  살아있다는 결정론적 증거**이므로 무조건 deny한다. hooks가 진짜 없는 환경(Windows
+  Desktop Code 탭)에서는 이 훅도 당연히 안 뜨므로 자동으로 통과 — 별도 분기 없이 존재
+  자체가 판정 기준.
 - **DIY 설정** (`config_store.py` + MCP `token_saver_config_*`)
   위 훅들의 임계값·kill switch를 훅 재배포 없이 조회·변경. env kill switch
   (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선.
@@ -278,16 +288,20 @@ add 시 클론되는 위치는 `~/.claude/plugins/marketplaces/<marketplace-name
    (`mcp/server.py`, `token_saver_check`/`token_saver_autopsy` 툴)로 노출됩니다.
 
 <details>
-<summary>정정 경위 + 알려진 결함(완화 시도, 미검증)</summary>
+<summary>정정 경위 + 결함과 수정(2026-08-11)</summary>
 
 실사용 macOS Desktop Code 탭 세션의 실제 트랜스크립트를 열어보니 `UserPromptSubmit`
 hook이 정상 발화해 `⟢` 효율 줄이 그대로 출력됐습니다(`experiments/PROTOCOL.md` 실험11).
 
-**알려진 결함**: Skill의 "hooks 줄이 이미 보이면 MCP 호출 생략" 자기감지 지시가 실전에서
-안 지켜지는 사례가 실측됨(hooks 정상 발화 중에도 모델이 MCP를 중복 호출 시도).
-2026-08-09 `skills/rules/SKILL.md`에 "이번 턴에 `⟢` 줄이 실제로 있는지"를 매 턴
-명시적으로 자문하게 하는 번호 매긴 게이트로 지시를 강화했으나, 프롬프트 준수 여부는
-실사용 트랜스크립트로 재확인해야 확정 — 아직 안 함.
+**과거 결함**: Skill의 "hooks 줄이 이미 보이면 MCP 호출 생략" 자기감지 지시가 실전에서
+안 지켜지는 사례가 실측됨(hooks 정상 발화 중에도 모델이 MCP를 중복 호출 시도, Desktop
+auto-mode 안전성 체크 단계에서 실패까지 함).
+
+**수정(2026-08-11)**: 이 판단을 프롬프트에서 코드로 옮겼습니다 — 새 `hooks/check_gate.py`
+(PreToolUse, matcher: `token_saver_check`)가 hooks 정상 발화 환경에서 이 훅 자체가
+실행됐다는 사실을 근거로 `token_saver_check` 중복 호출을 결정론적으로 deny합니다.
+hooks가 진짜 없는 환경(Windows Desktop Code 탭)에서는 이 훅도 당연히 안 뜨므로
+자동으로 통과됩니다 — 별도 분기 없이 존재 자체가 판정 기준.
 
 상세 설계: `docs/superpowers/specs/2026-08-05-desktop-active-measurement-design.md`,
 실측 결과: `experiments/PROTOCOL.md` 실험11.

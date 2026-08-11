@@ -14,6 +14,12 @@
         ]
       },
       {
+        "matcher": "mcp__plugin_token-saver_token-saver__token_saver_check",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/check_gate.py\"" }
+        ]
+      },
+      {
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt_gate.py\"" }
         ]

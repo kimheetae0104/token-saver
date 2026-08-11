@@ -6,8 +6,10 @@ DIY로 조회·변경할 수 있게 하는 오버레이 레이어.
 오버라이드 > 하드코딩 기본값. env var가 항상 최우선인 이유 — 운영 중 문제 생기면
 즉시 끌 수 있는 기존 수단을 이 기능이 절대 약화시키면 안 된다.
 
-Desktop Code 탭은 hooks가 안 뜨므로(HANDOFF.md 10차) MCP token_saver_config_set이
-유일한 조회/변경 경로 — CLI/IDE에선 훅들이 같은 config.json을 직접 읽어 반영한다.
+Windows Desktop Code 탭은 hooks가 안 뜨므로(desktop/desktop#22138, Windows 11 한정
+재현 — macOS Desktop Code 탭은 hooks 정상 발화, experiments/PROTOCOL.md 실험11로
+정정) MCP token_saver_config_set이 유일한 조회/변경 경로 — CLI/IDE·macOS Desktop에선
+훅들이 같은 config.json을 직접 읽어 반영한다.
 
 DEFAULTS는 각 hook 파일의 실제 하드코딩 상수와 반드시 일치해야 한다(단일 진실
 소스는 이쪽이 아니라 각 hook 파일 — 훅은 여전히 self-contained 유지, 이 모듈을
@@ -24,6 +26,7 @@ DEFAULTS = {
     "bash_trim": {"disabled": False, "line_threshold": 200, "keep_head": 40, "keep_tail": 20},
     "prompt_gate": {"disabled": False},
     "ladder_gate": {"disabled": False},
+    "check_gate": {"disabled": False},
 }
 _TYPES = {
     "disabled": bool,
