@@ -672,8 +672,33 @@ N=0을 브리프 지시대로 직접 파고든 결과 **표본 부족이 아니�
 haiku 겹침)은 Task3 재측정(production_failures.jsonl 142줄, 변화 없음)으로도 전제가
 안 바뀌어 그대로 블록 유지 — 세션 누적 대기, 액션 불가.
 
+## 20차 — ladder_gate 버그 실제 수정 + 릴리스 준비도 점검 (2026-08-12)
+19차가 진단만 하고 넘긴 1순위(`_extract_recommended_tier()`의 bare-list 미처리)를
+TDD로 수정. `tests/test_ladder_gate.py`에 실전 payload 형태
+(`tool_output=[{"type":"text","text":"추천: ..."}]`) 그대로 회귀테스트 추가 → 먼저
+실패 확인 → `hooks/ladder_gate.py`에 `isinstance(val, list)` 분기(~4줄) 추가 →
+통과 확인(커밋 `e1bafc6`). 이제부터 실사용에서 "추천/실제 불일치 재확인" 게이트와
+`ladder_gate_events/` 로깅이 실제로 발화한다 — 다음 세션에서 `measure.py --all`의
+사다리 일치율 지표가 처음으로 N>0을 가질 것으로 예상(그전엔 계산 불가였음).
+
+이어서 "사람들이 써도 될 정도"인지 릴리스 준비도 점검(결정론 체크, 서브에이전트 미위임 —
+grep/CLI로 될 일):
+- `pytest -q`: **208/208 PASS**(기존 207 + 신규 1). 이 머신에 pytest가 없어 먼저 설치.
+- `claude plugin validate .`: PASS.
+- 하드코딩 절대경로: `measure.py` 1건 검색됐으나 주석 속 예시일 뿐 실제 참조 아님 — 문제 없음.
+- hooks 실행권한: `hooks/*.py`에 +x 없음이지만 `hooks/hooks.json`이 전부 `python3 "<path>"`로
+  명시 호출(직접 실행 아님) — 비영향, 수정 불필요.
+- 버전 정합: `plugin.json`/`marketplace.json` 둘 다 0.3.15로 일치했으나 이번 기능 버그
+  수정이 실사용 동작을 바꾸는 수준이라 **0.3.16**으로 동시 bump(커밋 예정).
+- LICENSE 존재, README/README.en 테스트 배지 207→208 갱신(이 커밋에 포함) 외 미검토 항목 없음.
+- 미검토(범위 밖으로 남김, 액션 아님): `plugin.json`/`marketplace.json` description의
+  "N=6-7 세션" 문구가 최신인지는 이번 점검에 포함 안 함 — 별도 확인 필요하면 다음 스레드.
+
+결론: 릴리스 블로커 없음. 우선순위표 1위 완료로 소거, 2위(문서 인용 정합성 자동 검증
+스크립트)가 다음 순번으로 승격.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
 3. `python3 measure.py --all` 로 이전 세션 대비 효율 비교하며 시작.
-4. 위 "Phase 2" 절의 **"다음에 고를 것(순위 1~2위)"** 표에서 하나 골라 진행.
+4. 다음 순번: **문서 인용 정합성 자동 검증 스크립트**(design.md의 "Phase 2 결과" 절 2번 항목).

@@ -18,7 +18,7 @@ in PROTOCOL.md).
 
 ![version](https://img.shields.io/badge/version-0.3.15-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-207%2F207_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-208%2F208_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
