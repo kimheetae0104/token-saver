@@ -16,13 +16,13 @@ quality of what you get for that cost**. Experiments have measured cases where c
 dropped 6.8–7.6× with zero loss in correctness or quality ([Status](#status), evidence
 in PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.14-blue)
+![version](https://img.shields.io/badge/version-0.3.15-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![tests](https://img.shields.io/badge/tests-215%2F215_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **Status: v0.3.14, early stage** — calibrated on N=6–7 measured sessions, no
+> **Status: v0.3.15, early stage** — calibrated on N=6–7 measured sessions, no
 > third-party validation, no vendor claims — only measured facts get recorded. See
 > [Status](#status) for detail.
 
@@ -52,10 +52,13 @@ Below is the 4-slot gate's actual behavior, verbatim.
 ```
 User: beef it up more
 
-Claude: (tries to call a tool — prompt_gate.py blocks the first call and responds)
-  I need to check something before proceeding — what exactly to do, any constraints
-  to respect, what "done" looks like (and if scope is broad, whether to do it directly
-  or delegate). Give me a quick rundown, then I'll retry.
+Claude: (tries to call a tool — prompt_gate.py blocks the first call and responds —
+  Markdown 4-slot bullet format, applied 2026-08-11 on Experiment 21's N=20 result)
+  Before proceeding, please cover 4 things and retry.
+  - **Intent**: what to do
+  - **Constraints**: anything to respect
+  - **Success criteria**: what "done" looks like
+  - **Delegation boundary**: if scope is broad, direct or delegate
 
 Claude: Which part should I strengthen? If you mean the read_guard.py thresholds we
   just touched, tell me which condition to tighten or loosen and I'll go right ahead.
@@ -70,7 +73,7 @@ trip even when a turn fires several tool calls in parallel — concurrency proof
 
 ## Status
 
-Currently v0.3.14, early stage.
+Currently v0.3.15, early stage.
 
 - Values are calibrated on **N=6–7 sessions**. No third-party validation (self-measured
   only).

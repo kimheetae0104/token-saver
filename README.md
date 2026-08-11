@@ -13,13 +13,13 @@ Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아�
 나오는 결과물의 품질까지 같이 끌어올리는 것** — 실험에서 정답률·품질 손실 없이 비용만
 6.8~7.6배 줄어든 사례가 실측됐습니다([상태](#상태), 근거는 PROTOCOL.md).
 
-![version](https://img.shields.io/badge/version-0.3.14-blue)
+![version](https://img.shields.io/badge/version-0.3.15-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![tests](https://img.shields.io/badge/tests-215%2F215_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.14, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.15, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -47,9 +47,13 @@ Python 3(표준 라이브러리만 사용 — 별도 `pip install` 불필요), C
 ```
 사용자: 더 강화시켜
 
-Claude: (도구를 호출하려 하면 prompt_gate.py가 첫 호출을 막고 이렇게 응답합니다)
-  진행하기 전에 확인이 필요해요 — 무엇을 할지, 지켜야 할 제약이 있는지, 뭐가 되면
-  끝인지(범위가 넓다면 직접 할지 위임할지도) 먼저 간단히 설명한 다음 다시 시도해주세요.
+Claude: (도구를 호출하려 하면 prompt_gate.py가 첫 호출을 막고 이렇게 응답합니다 —
+  Markdown 4슬롯 불릿 포맷, 실험21/N=20 확정 근거로 2026-08-11 적용)
+  진행하기 전에 4가지를 먼저 짚고 다시 시도해주세요.
+  - **Intent**: 무엇을 할지
+  - **Constraints**: 지켜야 할 제약이 있는지
+  - **Success criteria**: 뭐가 되면 끝인지
+  - **Delegation boundary**: 범위가 넓다면 직접 할지 위임할지
 
 Claude: 어떤 부분을 더 강화할지 짚어주시겠어요? 방금 다룬 read_guard.py의 임계값을
   말씀하시는 거라면, 어떤 조건을 더 엄격하게/느슨하게 할지 알려주시면 바로 진행하겠습니다.
@@ -63,7 +67,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.14, 초기 단계입니다.
+현재 v0.3.15, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
