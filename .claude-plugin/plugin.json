@@ -1,7 +1,7 @@
 {
   "name": "token-saver",
   "description": "Model-tier routing ladder (Haiku -> verify -> escalate, with an MCP advisory tool + a PreToolUse gate that forces consulting it before subagent delegation) + waste-detection coaching hooks for Claude Code, a Skill+MCP fallback for Claude Desktop's Code tab (with DIY config tools), a deterministic PreToolUse guard against duplicate/oversized rereads, a PreToolUse gate forcing a 4-slot echo on ambiguous turns, PostToolUse trimmers for oversized Grep/Bash output, and a real-time pace line for 5h/weekly budgeting. Measured savings only (own harness cost model), no vendor claims. Early stage: v0.x, calibrated on N=6-7 sessions.",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "license": "MIT",
   "author": {
     "name": "kimheetae0104",

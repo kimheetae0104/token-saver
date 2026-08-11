@@ -1,15 +1,25 @@
 # token-saver
 
+*[English](README.en.md)*
+
 Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아니라 **토큰당 아웃풋 극대화** —
 자세한 철학은 [CLAUDE.md](CLAUDE.md), 수치 근거는 [experiments/PROTOCOL.md](experiments/PROTOCOL.md) 참고.
 
-![version](https://img.shields.io/badge/version-0.3.10-blue)
+평소처럼 편하게 대화하면 됩니다 — Claude가 요청을 이해해서 알아서 작업을 진행하고,
+서브에이전트로 위임할 땐 작업 성격(오라클 유무·배치 크기·위험도)에 맞는 모델 티어
+(Haiku/Sonnet/Opus)를 사용자가 매번 지정하지 않아도 판단하도록 게이트가 강제합니다
+(자동 전환이 아니라 "판단을 빼먹지 못하게" 강제 — 완전 자동화라고 과장하지 않습니다,
+[무엇을 하는가](#무엇을-하는가) 참고). 지향점은 비용만 깎는 게 아니라 **같은 비용에
+나오는 결과물의 품질까지 같이 끌어올리는 것** — 실험에서 정답률·품질 손실 없이 비용만
+6.8~7.6배 줄어든 사례가 실측됐습니다([상태](#상태), 근거는 PROTOCOL.md).
+
+![version](https://img.shields.io/badge/version-0.3.11-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-205%2F205_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-208%2F208_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.10, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.11, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -53,7 +63,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.10, 초기 단계입니다.
+현재 v0.3.11, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
@@ -143,11 +153,15 @@ flowchart TD
   "판단을 빼먹지 못하게" 강제만 한다. 최종 모델 선택은 여전히 Claude의 판단.
   Agent 호출이 실제로 통과될 때마다 추천 티어·실제 model·일치 여부를
   `ladder_gate_events/`에 기록해 `--all`/statusLine/세션 리포트에 "사다리 N회(추천대로
-  M)"로 누적 노출한다(2026-08-11) — **$환산은 안 한다**: "다른 티어로 돌렸으면
-  얼마였을까"는 실제로 일어나지 않은 대안의 비용을 지어내는 것이라 RTK류 허수
-  counterfactual 함정([상태](#상태) 시장 비교 참고)과 같아서, 실제로 일어난 사실(추천값·
-  실제값·일치 여부)만 기록한다. 로그가 쌓이면 `actor_breakdown()`(이미 있음, 서브에이전트
-  실측 토큰·비용을 행위자별로 분해)과 대조해 실 $ 비교를 낼 수 있다 — 아직 안 함.
+  M)"로 누적 노출한다(2026-08-11). **$환산은 counterfactual로 지어내지 않는다**: "다른
+  티어로 돌렸으면 얼마였을까"는 실제로 일어나지 않은 대안의 비용 추정이라 RTK류 허수
+  counterfactual 함정([상태](#상태) 시장 비교 참고)과 같다 — 대신
+  `ladder_gate_cost_comparison()`(2026-08-11)이 이벤트 타임스탬프를
+  `_subagent_records()`(actor_breakdown 소스, 서브에이전트 실측 토큰·비용)와 근사 매칭해
+  "추천대로 위임했을 때 실제로 쓴 $" vs "추천과 다르게 위임했을 때 실제로 쓴 $"를 둘 다
+  실측치로만 세션 리포트에 노출한다(대응 못한 이벤트는 0으로 지어내지 않고 별도 건수로
+  표시). tool_use_id 정확 연결이 로그에 없어 타임스탬프 근사 매칭이라 완벽한 1:1은
+  아님 — 근거·테스트는 `tests/test_measure_refactor.py`(`test_ladder_gate_cost_comparison_*`).
 - **DIY 설정** (`config_store.py` + MCP `token_saver_config_*`)
   위 훅들의 임계값·kill switch를 훅 재배포 없이 조회·변경. env kill switch
   (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선.

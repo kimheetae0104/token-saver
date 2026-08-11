@@ -612,6 +612,124 @@ def test_do_statusline_shows_ladder_resolutions():
         assert "사다리 1회(추천대로 1)" in out, out
 
 
+def _set_plugin_data(plugin_data):
+    old = os.environ.get("CLAUDE_PLUGIN_DATA")
+    os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+    return old
+
+
+def _restore_plugin_data(old):
+    if old is None:
+        os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+    else:
+        os.environ["CLAUDE_PLUGIN_DATA"] = old
+
+
+def _write_ladder_events(plugin_data, session, records):
+    events_dir = os.path.join(plugin_data, "ladder_gate_events")
+    os.makedirs(events_dir, exist_ok=True)
+    with open(os.path.join(events_dir, f"{session}.jsonl"), "w") as f:
+        for rec in records:
+            f.write(json.dumps({"event": "ladder_gate_resolution", **rec}) + "\n")
+
+
+def _write_subagent(main_path, task_id, tool_use_id, model, agent_type,
+                     input_tokens, output_tokens, ts_start, ts_end):
+    base = os.path.splitext(main_path)[0]
+    subagents_dir = os.path.join(base, "subagents", task_id)
+    os.makedirs(subagents_dir, exist_ok=True)
+    task_path = os.path.join(subagents_dir, f"agent-{task_id}.jsonl")
+    lines = [
+        json.dumps({"message": {"role": "user", "content": "작업"}, "timestamp": ts_start}),
+        json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "완료"}],
+                   "usage": {"input_tokens": input_tokens, "cache_creation_input_tokens": 0,
+                             "cache_read_input_tokens": 0, "output_tokens": output_tokens},
+                   "model": model}, "timestamp": ts_end}),
+    ]
+    with open(task_path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    meta_path = task_path[:-len(".jsonl")] + ".meta.json"
+    with open(meta_path, "w") as f:
+        json.dump({"toolUseId": tool_use_id, "model": model, "agentType": agent_type,
+                   "description": f"테스트 {task_id}"}, f)
+    return task_path
+
+
+def test_ladder_gate_cost_comparison_empty_when_no_data():
+    with tempfile.TemporaryDirectory() as d:
+        main_path = os.path.join(d, "fake-session.jsonl")
+        with open(main_path, "w") as f:
+            f.write(FIXTURE)
+        result = measure.ladder_gate_cost_comparison(main_path)
+        assert result == {"matched_n": 0, "matched_cost": 0.0, "mismatched_n": 0,
+                           "mismatched_cost": 0.0, "unmatched_events": 0}, result
+
+
+def test_ladder_gate_cost_comparison_attributes_real_cost_by_match_status():
+    """이벤트(ladder_gate.py 로그)와 서브에이전트 실측 레코드를 타임스탬프로 대조해,
+    일치/불일치 각각의 실제 비용을 합산한다 — 다른 티어였으면 얼마였을지 추정하지 않는다."""
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        session = "fake-session"
+        main_path = os.path.join(d, f"{session}.jsonl")
+        with open(main_path, "w") as f:
+            f.write(FIXTURE)
+
+        # 이벤트1(추천대로, matched=True) ts=1785888000.0 직후 서브에이전트1 시작(00:00:03Z)
+        # 이벤트2(추천과 다름, matched=False) ts=1785888020.0 직후 서브에이전트2 시작(00:00:23Z)
+        _write_ladder_events(plugin_data, session, [
+            {"recommended_tier": "haiku", "requested_tier": "haiku",
+             "matched": True, "ts": 1785888000.0},
+            {"recommended_tier": "haiku", "requested_tier": "sonnet",
+             "matched": False, "ts": 1785888020.0},
+        ])
+        task1 = _write_subagent(
+            main_path, "task-1", "tool-1", "claude-haiku-4-5-20251001", "general-purpose",
+            input_tokens=1000, output_tokens=200,
+            ts_start="2026-08-05T00:00:03Z", ts_end="2026-08-05T00:00:05Z")
+        task2 = _write_subagent(
+            main_path, "task-2", "tool-2", "claude-sonnet-5-20260101", "general-purpose",
+            input_tokens=1000, output_tokens=200,
+            ts_start="2026-08-05T00:00:23Z", ts_end="2026-08-05T00:00:25Z")
+
+        old_env = _set_plugin_data(plugin_data)
+        try:
+            result = measure.ladder_gate_cost_comparison(main_path)
+        finally:
+            _restore_plugin_data(old_env)
+
+        expected_cost1, _ = measure.aggregate(measure.parse_session(task1))
+        expected_cost2, _ = measure.aggregate(measure.parse_session(task2))
+
+        assert result["matched_n"] == 1, result
+        assert result["mismatched_n"] == 1, result
+        assert abs(result["matched_cost"] - expected_cost1["cost"]) < 1e-9, result
+        assert abs(result["mismatched_cost"] - expected_cost2["cost"]) < 1e-9, result
+        assert result["unmatched_events"] == 0, result
+        # 이질적 모델(haiku vs sonnet)이라 비용 자체가 다름 — 서로 뒤바뀌어 매칭되지 않았는지 확인
+        assert result["matched_cost"] != result["mismatched_cost"], result
+
+
+def test_ladder_gate_cost_comparison_counts_event_with_no_following_subagent():
+    """서브에이전트 레코드가 하나도 없으면(트랜스크립트 아직 안 씌었거나 discovery 실패)
+    이벤트는 unmatched_events로 집계되고 비용 합산에선 제외된다 — 없는 값을 0으로 지어내지 않음."""
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        session = "fake-session"
+        main_path = os.path.join(d, f"{session}.jsonl")
+        with open(main_path, "w") as f:
+            f.write(FIXTURE)
+        _write_ladder_events(plugin_data, session, [
+            {"recommended_tier": "haiku", "requested_tier": "haiku",
+             "matched": True, "ts": 1785888000.0},
+        ])
+        old_env = _set_plugin_data(plugin_data)
+        try:
+            result = measure.ladder_gate_cost_comparison(main_path)
+        finally:
+            _restore_plugin_data(old_env)
+        assert result == {"matched_n": 0, "matched_cost": 0.0, "mismatched_n": 0,
+                           "mismatched_cost": 0.0, "unmatched_events": 1}, result
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0

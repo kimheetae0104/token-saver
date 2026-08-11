@@ -349,42 +349,106 @@ def ladder_gate_log_dir():
         tempfile.gettempdir(), "token-saver-ladder-gate-events")
 
 
+def _read_ladder_gate_events(session_id):
+    """ladder_gate.py가 기록한 events jsonl을 원본 그대로 파싱(순서는 파일에 쓰인 그대로 —
+    정렬은 호출부 책임). 로그 없으면 빈 리스트(정상)."""
+    path = os.path.join(ladder_gate_log_dir(), f"{session_id or ''}.jsonl")
+    events = []
+    if not session_id or not os.path.isfile(path):
+        return events
+    with open(path, "r", errors="replace") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except Exception:
+                continue
+    return events
+
+
 def ladder_gate_summary_for_session(session_id):
     """세션별 사다리 실제 적용 요약 — 전부 실제로 일어난 사실만 집계한다(추천 티어·실제
     model·일치 여부). $환산은 여기서 하지 않는다: '다른 티어로 돌렸으면 얼마였을까'는
     실제로 일어나지 않은 대안의 비용을 추정하는 것이라 RTK류 허수 counterfactual 함정과
-    같다(README '시장 비교' 참고) — 실 $ 비교가 필요하면 이 로그가 쌓인 뒤
-    actor_breakdown()의 실측 토큰과 대조할 것. 로그 없으면 전부 0(정상).
+    같다(README '시장 비교' 참고) — 실 $ 비교는 ladder_gate_cost_comparison() 참고
+    (actor_breakdown() 소스의 실측 토큰과 대조, 추정 없음). 로그 없으면 전부 0(정상).
 
     주의(코드리뷰로 발견, 2026-08-11): `mismatched`는 "추천과 다른 티어로 위임"의 총합일
     뿐, 원인은 못 가른다 — CLAUDE.md 사다리 정책 자체가 "Haiku 실패시 Sonnet으로 상향"을
     명시하므로, 같은 턴에서 추천(haiku)대로 시도했다가 검증 실패로 정당하게 Sonnet으로
     올린 경우도 여기 잡힌다(recommended_tier가 턴 단위로 고정이라 재호출을 구분 못 함).
     "무모한 이탈 건수"로 해석하면 과잉해석 — 그냥 "추천과 실제가 갈린 총 횟수"로 읽을 것."""
-    path = os.path.join(ladder_gate_log_dir(), f"{session_id or ''}.jsonl")
     resolutions = matched = mismatched = 0
     tiers = {}
-    if session_id and os.path.isfile(path):
-        with open(path, "r", errors="replace") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except Exception:
-                    continue
-                resolutions += 1
-                tier = rec.get("recommended_tier")
-                if tier:
-                    tiers[tier] = tiers.get(tier, 0) + 1
-                m = rec.get("matched")
-                if m is True:
-                    matched += 1
-                elif m is False:
-                    mismatched += 1
+    for rec in _read_ladder_gate_events(session_id):
+        resolutions += 1
+        tier = rec.get("recommended_tier")
+        if tier:
+            tiers[tier] = tiers.get(tier, 0) + 1
+        m = rec.get("matched")
+        if m is True:
+            matched += 1
+        elif m is False:
+            mismatched += 1
     return {"resolutions": resolutions, "matched": matched, "mismatched": mismatched,
             "tiers": tiers}
+
+
+def _iso_to_epoch(ts):
+    try:
+        return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
+
+def ladder_gate_cost_comparison(main_path):
+    """ladder_gate 이벤트를 서브에이전트 실측 비용(actor_breakdown 소스인
+    _subagent_records())과 타임스탬프로 대조해, 이번 세션에서 '추천대로 위임했을 때'와
+    '추천과 다르게 위임했을 때' 각각 실제로 얼마를 썼는지 합산한다. '다른 티어였으면
+    얼마였을까'는 절대 추정하지 않는다 — 그건 실제로 일어나지 않은 대안 비용 추정이라
+    RTK류 허수 counterfactual 함정(README '시장 비교' 참고)과 같다. 여기 나오는 숫자는
+    전부 실제로 청구된(구독이면 동등 API 환산) 실측치뿐이다.
+
+    매칭 방법(근사치 — 로그에 tool_use_id가 없어 정확한 1:1 연결은 불가): ladder_gate.py는
+    PreToolUse(Agent) 게이트를 막 통과시킨 직후 이벤트를 기록하므로, 이벤트 ts 이후 가장
+    먼저 시작한(아직 안 쓰인) 서브에이전트를 그 이벤트가 만든 위임으로 본다. 이벤트·
+    서브에이전트 모두 시간순으로 정렬한 뒤 투 포인터로 순서대로 소비 — matched=None(요청
+    모델 미지정, 부모 상속) 이벤트는 레코드를 소비하되 어느 쪽에도 집계하지 않는다(포인터
+    정렬을 유지하기 위함). 대응하는 서브에이전트를 못 찾은 이벤트는 unmatched_events로만
+    세고 비용 합산에서 제외한다 — 없는 값을 0으로 지어내지 않는다. 로그나 서브에이전트가
+    없으면 전부 0(정상)."""
+    session_id = session_id_from_path(main_path)
+    events = sorted(_read_ladder_gate_events(session_id), key=lambda e: e.get("ts") or 0)
+    records = []
+    for r in _subagent_records(main_path):
+        epoch = _iso_to_epoch(r["start_ts"]) if r.get("start_ts") else None
+        if epoch is not None:
+            records.append((epoch, r))
+    records.sort(key=lambda pair: pair[0])
+
+    matched_n = mismatched_n = unmatched_events = 0
+    matched_cost = mismatched_cost = 0.0
+    i = 0
+    for e in events:
+        ts = e.get("ts") or 0
+        while i < len(records) and records[i][0] < ts:
+            i += 1
+        if i >= len(records):
+            unmatched_events += 1
+            continue
+        _, rec = records[i]
+        i += 1
+        if e.get("matched") is True:
+            matched_n += 1
+            matched_cost += rec["cost"]
+        elif e.get("matched") is False:
+            mismatched_n += 1
+            mismatched_cost += rec["cost"]
+    return {"matched_n": matched_n, "matched_cost": matched_cost,
+            "mismatched_n": mismatched_n, "mismatched_cost": mismatched_cost,
+            "unmatched_events": unmatched_events}
 
 
 def session_id_from_path(path):
@@ -769,6 +833,12 @@ def print_report(path):
               f"{ladder['resolutions']-ladder['matched']-ladder['mismatched']})  "
               f"추천분포: {tiers_str}  [ladder_gate 실측, $환산 안 함 — '다름'엔 정당한 "
               f"검증실패 후 상향도 포함, 무모한 이탈로 오독 금지]")
+        cmp = ladder_gate_cost_comparison(path)
+        if cmp["matched_n"] or cmp["mismatched_n"]:
+            unmatched_note = f" · 대응 못한 이벤트 {cmp['unmatched_events']}건" if cmp["unmatched_events"] else ""
+            print(f"    실측 $ 대조: 추천대로 위임 {cmp['matched_n']}건 {money(cmp['matched_cost'])}"
+                  f" · 추천과 다르게 위임 {cmp['mismatched_n']}건 {money(cmp['mismatched_cost'])}"
+                  f"{unmatched_note}  [타임스탬프 근사 매칭, '다른 티어였으면' 추정 아님]")
     print(f"  프록시  병렬={px['parallelism']*100:.0f}%  read_thrash={px['read_thrash']*100:.0f}%"
           f"  correction={px['correction']*100:.0f}%  clarify={px['clarify']}"
           f"  verbosity={px['verbosity']:.0f}/턴  agents={px['n_agent_spawns']}")
