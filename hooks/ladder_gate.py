@@ -7,8 +7,18 @@ MCP 툴을 반드시 먼저 호출하게 강제한다. CLAUDE.md의 사다리 �
 
 세 가지 모드를 한 파일에 담는다(hooks.json에서 이벤트별로 다른 인자로 호출):
   --reset          UserPromptSubmit: 매 턴 시작 시 consulted=False로 리셋.
-  --mark-consulted PostToolUse(matcher: token_saver_suggest_tier MCP 툴): consulted=True.
-  (인자 없음)       PreToolUse(matcher: Agent): consulted가 False면 deny.
+  --mark-consulted PostToolUse(matcher: token_saver_suggest_tier MCP 툴): consulted=True +
+                   추천 티어를 응답 텍스트에서 파싱해 저장(가능하면).
+  (인자 없음)       PreToolUse(matcher: Agent): consulted가 False면 deny. consulted=True여도
+                   호출측이 명시한 model이 추천 티어와 다르면 1회만 다시 확인시킨다(강화,
+                   2026-08-11) — "정말 그 티어로 할 거냐"만 묻고 강제로 막지는 않는다(정당한
+                   이유로 추천과 다르게 고를 수도 있어서, 판단 자체는 여전히 Claude 몫).
+
+강화 지점의 설계 원칙: 추천 티어 파싱은 내가 직접 생성한 고정 포맷 문자열("추천: <tier>(...")
+을 정규식으로 읽는 것뿐이다 — 사용자의 자유 서술 태스크를 오라클 유무·의미론적 위험 등으로
+자동 분류하려는 시도가 **아니다**(그건 실험9에서 위양성·위음성이 실측된 함정, 여전히 안 함).
+여기서 비교하는 두 값(추천 티어 문자열, Agent 호출의 model 파라미터)은 둘 다 이미 결정된
+값이라 단순 문자열 비교로 충분하다.
 
 matcher 이름 근거: MCP 툴 이름은 공식 문서(code.claude.com/docs/en/hooks)의 플러그인 번들
 서버 규약 mcp__plugin_<plugin-name>_<server-name>__<tool> 그대로(2026-08-11 WebFetch로
@@ -31,10 +41,47 @@ DIY 설정: config.json(config_store.py)의 ladder_gate.disabled로도 끌 수 �
 """
 import json
 import os
+import re
 import sys
 import tempfile
 
 STATE_MAX_AGE_SEC = 24 * 60 * 60
+
+# measure.py의 BASE_IN 키와 동일 — 훅은 self-contained 관례(config_store.py 참고)라
+# import 대신 값만 짧게 중복. 순서는 무관(부분 문자열 매치라 먼저 맞는 것으로 충분).
+_TIERS = ("opus", "sonnet", "haiku", "fable")
+_RECOMMEND_RE = re.compile(r"^추천:\s*([a-z]+)", re.IGNORECASE)
+_RESPONSE_FIELD_CANDIDATES = ("tool_output", "tool_response", "output")
+
+
+def _tier_of(model):
+    m = (model or "").lower()
+    for t in _TIERS:
+        if t in m:
+            return t
+    return None
+
+
+def _extract_recommended_tier(payload):
+    """PostToolUse payload에서 suggest_tier 응답 텍스트를 찾아 추천 티어를 뽑는다.
+    필드명이 문서와 실제 배선에서 다를 수 있어(grep_trim.py의 OUTPUT_FIELD_CANDIDATES와
+    동일 이유) 후보를 순서대로 시도, MCP 응답은 {"content":[{"type":"text","text":...}]}
+    형태일 수도 있어 그 경로도 함께 시도. 못 찾으면 None(그래도 consulted 자체는 기록됨 —
+    이 부가정보는 있으면 강화, 없어도 기본 게이트는 그대로 동작하는 fail-open 설계)."""
+    for field in _RESPONSE_FIELD_CANDIDATES:
+        val = payload.get(field)
+        text = None
+        if isinstance(val, str):
+            text = val
+        elif isinstance(val, dict):
+            content = val.get("content")
+            if isinstance(content, list) and content and isinstance(content[0], dict):
+                text = content[0].get("text")
+        if isinstance(text, str):
+            m = _RECOMMEND_RE.match(text.strip())
+            if m:
+                return m.group(1).lower()
+    return None
 
 
 def state_dir():
@@ -125,17 +172,31 @@ def main():
         return allow()
 
     if "--mark-consulted" in sys.argv:
-        write_state(session_id, {"consulted": True})
+        state = {"consulted": True}
+        recommended = _extract_recommended_tier(payload)
+        if recommended:
+            state["recommended_tier"] = recommended
+        write_state(session_id, state)
         return allow()
 
     # 기본 모드: PreToolUse(matcher: Agent) 게이트 판정.
     state = read_state(session_id)
-    if state.get("consulted"):
-        return allow()
-    return deny(
-        "서브에이전트로 위임하기 전에 token_saver_suggest_tier MCP 툴을 먼저 호출해 "
-        "모델 티어(haiku/sonnet/opus)를 확인하세요 — 호출 후 다시 시도하면 통과합니다."
-    )
+    if not state.get("consulted"):
+        return deny(
+            "서브에이전트로 위임하기 전에 token_saver_suggest_tier MCP 툴을 먼저 호출해 "
+            "모델 티어(haiku/sonnet/opus)를 확인하세요 — 호출 후 다시 시도하면 통과합니다."
+        )
+
+    recommended = state.get("recommended_tier")
+    requested = _tier_of((payload.get("tool_input") or {}).get("model"))
+    if recommended and requested and recommended != requested and not state.get("mismatch_acknowledged"):
+        state["mismatch_acknowledged"] = True
+        write_state(session_id, state)
+        return deny(
+            f"방금 추천은 {recommended}였는데 model={requested}로 위임하려 합니다 — "
+            f"의도적이면 그대로 다시 시도하세요(통과합니다), 아니면 model을 {recommended}로 바꾸세요."
+        )
+    return allow()
 
 
 if __name__ == "__main__":

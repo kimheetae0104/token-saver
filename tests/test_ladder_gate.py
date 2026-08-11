@@ -14,8 +14,11 @@ HOOK = os.path.join(REPO, "hooks", "ladder_gate.py")
 
 
 def _call(session_id="sess-1", mode=None, tool_name="Agent", data_dir=None, disable=False,
-          include_session_id=True):
-    payload = {"hook_event_name": "PreToolUse", "tool_name": tool_name, "tool_input": {}}
+          include_session_id=True, tool_input=None, tool_output=None):
+    payload = {"hook_event_name": "PreToolUse", "tool_name": tool_name,
+               "tool_input": tool_input if tool_input is not None else {}}
+    if tool_output is not None:
+        payload["tool_output"] = tool_output
     if include_session_id:
         payload["session_id"] = session_id
     env = dict(os.environ)
@@ -160,6 +163,74 @@ def test_concurrent_agent_calls_all_deny_consistently_when_unconsulted():
         for t in threads:
             t.join()
         assert results.count("DENY") == N, results
+
+
+def test_mark_consulted_extracts_recommended_tier():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — 오라클로 저비용 검증 가능")
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "haiku", state
+
+
+def test_mark_consulted_extracts_tier_from_mcp_content_shape():
+    """MCP 응답이 {"content":[{"type":"text","text":...}]} 구조로 올 수도 있는 경로."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output={"content": [{"type": "text", "text": "추천: opus(effort=high) — ..."}]})
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "opus", state
+
+
+def test_mismatched_tier_denies_once_then_allows():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        resp = _call(session_id="sess-1", data_dir=data_dir,
+                     tool_input={"model": "claude-sonnet-5-20260101"})
+        assert resp is not None
+        assert "haiku" in resp["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "sonnet" in resp["hookSpecificOutput"]["permissionDecisionReason"]
+        # 재시도는 통과(강제 차단이 아니라 1회 확인용)
+        resp2 = _call(session_id="sess-1", data_dir=data_dir,
+                      tool_input={"model": "claude-sonnet-5-20260101"})
+        assert resp2 is None
+
+
+def test_matching_tier_allows_without_extra_prompt():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        resp = _call(session_id="sess-1", data_dir=data_dir,
+                     tool_input={"model": "claude-haiku-4-5-20251001"})
+        assert resp is None
+
+
+def test_no_model_specified_skips_mismatch_check():
+    """Agent 호출에 model을 아예 안 넘기면(흔한 경우 — 부모 모델 상속) 비교 자체를 생략."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={})
+        assert resp is None
+
+
+def test_no_recommended_tier_parsed_skips_mismatch_check():
+    """suggest_tier 응답 파싱이 실패해도(형식 예상 밖) 기본 게이트는 그대로 동작 — fail-open."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="이상한 형식의 응답")
+        resp = _call(session_id="sess-1", data_dir=data_dir,
+                     tool_input={"model": "claude-opus-5-20260101"})
+        assert resp is None
 
 
 def main():
