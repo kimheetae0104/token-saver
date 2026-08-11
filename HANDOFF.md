@@ -333,10 +333,16 @@ hook의 stdout(=`measure.py --check`의 `⟢` 효율 줄, `habit_coaching.py`·`
    + 정탐 유지) 추가, 33/33 통과.
    ~~**`escalation_pair`의 `_similar_desc()` — 재검토 정형문구 오탐**~~ **완료(2026-08-09,
    커밋 `8ddf98f`)**: 재검토 템플릿 단어(re/review/fix/round/wave/final)를 `_DESC_STOPWORDS`에
-   추가 + 자카드 임계값 0.5→0.7 상향, 회귀테스트 3개 추가, 35/35 통과. 처방(2)("다음 haiku
-   시작 전까지"로 매칭 폭 좁히기)는 **미착수**로 남음 — task-notification 필터로 137건 중
-   137건이 이미 걸러졌지만, 진짜 사용자 발화가 여러 haiku에 중복매칭되는 잔여 리스크는 여전히
-   있음(실측 사례 없음, 다음 후보).
+   추가 + 자카드 임계값 0.5→0.7 상향, 회귀테스트 3개 추가, 35/35 통과. ~~처방(2)("다음 haiku
+   시작 전까지"로 매칭 폭 좁히기)는 미착수로 남음~~ **완료(2026-08-11)**: `capture_failures()`의
+   `user_correction_follow` 매칭에 `haiku_starts` 상한을 추가 — haiku 위임 뒤 첫 사용자
+   메시지를 무조건 그 haiku의 후속으로 볼 게 아니라, "다음 haiku가 시작되기 전"이라는
+   상한을 둬서 순차 실행된 haiku 여러 건이 그 뒤에 오는 같은 교정 메시지 하나에 전부
+   중복 매칭되는 걸 막았다. TDD로 버그 재현(RED, 중복 2건 확인) 후 수정. 회귀테스트 1개
+  (`test_user_correction_follow_does_not_duplicate_across_sequential_haiku_tasks`) 추가,
+   전체 209/209 통과. 단, 동시(병렬) 스폰된 haiku 2건이 겹치는 경우(두 번째가 첫 번째
+   끝나기 전에 시작)는 이 상한으로 못 잡는다 — "다음 haiku 시작 시각"이 존재하지 않아
+   여전히 중복 가능(문서화된 처방 그대로만 구현, 병렬 사례는 실측 없음·별도 후속).
    ~~**`experiments/delegation_overhead_bench.py`의 `overhead_ratio()` 공식이 실험10 헤드라인
    수치(총비용 기준)와 정의상 다름**(실험17 처방#3)~~ **완료(2026-08-09)**:
    `multiplier_vs_baseline`을 `total_cost(=orchestrator_cost+content_cost)/baseline_cost`

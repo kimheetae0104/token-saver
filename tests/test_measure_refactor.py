@@ -456,6 +456,45 @@ def test_capture_failures_still_detects_real_user_corrections():
         assert "대신" in candidates[0]["user_text_snippet"] or "다른" in candidates[0]["user_text_snippet"]
 
 
+def test_user_correction_follow_does_not_duplicate_across_sequential_haiku_tasks():
+    """HANDOFF.md 11차 처방(2, 미착수였음): haiku 위임 2건이 순차 실행되고 그 뒤에 진짜
+    사용자 교정 메시지가 하나만 오면, 그 메시지가 두 haiku 레코드 모두에 중복 매칭돼선
+    안 된다 — '다음 haiku 시작 전까지'로 매칭 폭을 좁혀 마지막(가장 가까운) haiku
+    하나에만 귀속시킨다."""
+    with tempfile.TemporaryDirectory() as d:
+        main_path = os.path.join(d, "main-session.jsonl")
+        main_lines = [
+            json.dumps({"message": {"role": "user", "content": "작업 시작"}, "timestamp": "2026-08-05T00:00:00Z"}),
+            json.dumps({"message": {"role": "assistant", "content": [{"type": "text", "text": "준비됨"}],
+                       "usage": {"input_tokens": 100, "output_tokens": 50}, "model": "claude-opus-5-20260101"},
+                       "timestamp": "2026-08-05T00:00:01Z"}),
+            # 진짜 사용자 교정 메시지 — 두 haiku 위임이 전부 끝난 뒤 딱 하나만 옴
+            json.dumps({"message": {"role": "user", "content": "그건 됐고 대신 다른 방식으로 해줄래?"},
+                       "timestamp": "2026-08-05T00:00:25Z"}),
+        ]
+        with open(main_path, "w") as f:
+            f.write("\n".join(main_lines) + "\n")
+
+        # haiku 위임 1: 00:00:03Z ~ 00:00:10Z
+        _write_subagent(main_path, "task-1", "tool-1", "claude-haiku-4-5-20251001",
+                         "general-purpose", input_tokens=50, output_tokens=30,
+                         ts_start="2026-08-05T00:00:03Z", ts_end="2026-08-05T00:00:10Z")
+        # haiku 위임 2: 첫 번째가 끝난(00:00:10Z) 뒤에 시작 — 00:00:12Z ~ 00:00:20Z
+        _write_subagent(main_path, "task-2", "tool-2", "claude-haiku-4-5-20251001",
+                         "general-purpose", input_tokens=50, output_tokens=30,
+                         ts_start="2026-08-05T00:00:12Z", ts_end="2026-08-05T00:00:20Z")
+
+        log_path = os.path.join(d, "test-failures.jsonl")
+        candidates = measure.capture_failures(main_path, log_path=log_path)
+
+        correction_candidates = [c for c in candidates if c["type"] == "user_correction_follow"]
+        assert len(correction_candidates) == 1, (
+            f"expected exactly 1 (no duplicate across sequential haiku tasks), "
+            f"got {len(correction_candidates)}: {correction_candidates}")
+        # 마지막(가장 가까운) haiku 위임 하나에만 귀속돼야 함
+        assert correction_candidates[0]["dedup_key"] == "corr:tool-2", correction_candidates[0]
+
+
 def test_similar_desc_filters_re_review_templates():
     """실험13 위양성 사례 2건 — 재검토 정형 문구가 반복되는 워크플로우에서 오탐 방지.
     수정 전: self-describing 단어(re, review, fix)만 겹쳐서 자카드 0.5+ 오탐

@@ -783,10 +783,20 @@ def capture_failures(main_path, log_path=None):
     user_msgs = sorted(
         (u for u in main_sess["users"] if u.get("ts")), key=lambda u: u["ts"])
     user_msgs = [u for u in user_msgs if not u["text"].lstrip().startswith("<task-notification>")]
+    haiku_starts = sorted(
+        r["start_ts"] for r in records if r["tier"] == "haiku" and r.get("start_ts"))
     for ri in records:
         if ri["tier"] != "haiku" or not ri["end_ts"]:
             continue
-        nxt = next((u for u in user_msgs if u["ts"] > ri["end_ts"]), None)
+        # 매칭 폭을 "다음 haiku 위임이 시작되기 전까지"로 좁힌다(HANDOFF.md 11차 처방#2,
+        # 2026-08-11 구현) — 그냥 "그 뒤 첫 사용자 메시지"만 보면, haiku 여러 건이 순차
+        # 실행되고 그 뒤에 진짜 교정 메시지가 하나만 왔을 때 그 메시지가 모든 haiku
+        # 레코드에 중복 매칭된다(실측 137/137은 task-notification 필터로 이미 걸렀지만,
+        # 진짜 사용자 발화가 여러 haiku에 중복 매칭되는 잔여 리스크는 남아 있었음).
+        upper_bound = next((s for s in haiku_starts if s > ri["end_ts"]), None)
+        nxt = next((u for u in user_msgs
+                    if u["ts"] > ri["end_ts"] and (upper_bound is None or u["ts"] < upper_bound)),
+                   None)
         if not nxt:
             continue
         text = nxt["text"]
