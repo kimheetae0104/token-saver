@@ -10,8 +10,13 @@ export const meta = {
   ],
 }
 
-const REPO = '/Volumes/Extreme SSD/token-test'
-const AUDIT = '/Users/gimhuitae/.claude/skills/frontend-design-review/references/audit.mjs'
+// 실험6(2026-08-04)을 실제로 돌렸을 때의 로컬 경로 그대로 — 실행 기록 보존용으로만
+// 남겨둔다(Workflow 스크립트 샌드박스엔 fs/env 접근이 없어 경로를 동적으로 못 구함).
+// 이 저장소는 그 이후 canonical root로 이전됐고, AUDIT도 이 repo 밖의 로컬 skill
+// 파일을 참조해 다른 환경에서 애초에 그대로 재실행 불가 — 재현하려면 REPO/AUDIT를
+// 실행 환경에 맞게 직접 바꿀 것.
+const REPO = '<local-only: path this repo lived at during experiment 6>'
+const AUDIT = '<local-only: path to the frontend-design-review skill audit.mjs>'
 const TIERS = ['haiku', 'sonnet', 'opus']
 
 const ARCH_SCHEMA = {
