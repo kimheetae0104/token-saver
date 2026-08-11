@@ -3,11 +3,22 @@
 Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아니라 **토큰당 아웃풋 극대화** —
 자세한 철학은 [CLAUDE.md](CLAUDE.md), 수치 근거는 [experiments/PROTOCOL.md](experiments/PROTOCOL.md) 참고.
 
+![version](https://img.shields.io/badge/version-0.3.6-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+![tests](https://img.shields.io/badge/tests-162%2F162_passing-brightgreen)
+![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
+![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
+
 > **상태: v0.3.6, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
+## 요구사항
+
+Python 3(표준 라이브러리만 사용 — 별도 `pip install` 불필요), Claude Code(플러그인 지원 버전).
+
 ## 목차
 
+- [요구사항](#요구사항)
 - [설치 전에 뭐가 달라지는지 보기](#설치-전에-뭐가-달라지는지-보기)
 - [상태](#상태)
 - [무엇을 하는가](#무엇을-하는가)
@@ -77,6 +88,29 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 </details>
 
 ## 무엇을 하는가
+
+한 턴이 흘러가는 동안 어느 지점에서 무엇이 개입하는지는 다음과 같습니다 — 파란 상자는
+LLM 호출 없는 결정론 훅, 흰 상자는 Claude/도구 실행 자체입니다.
+
+```mermaid
+flowchart TD
+    A[프롬프트 제출] --> B[["measure.py --check<br/>효율 상태 계산"]]
+    B --> C[["intent_gate.py<br/>4슬롯 확인 넛지"]]
+    C --> D[["habit_coaching.py<br/>채팅 습관 코칭"]]
+    D --> E{도구 호출}
+    E --> F[["read_guard.py<br/>Read 재독 차단"]]
+    E --> G[["prompt_gate.py<br/>미확인 시 1회 차단"]]
+    F --> H[도구 실행]
+    G --> H
+    H --> I[["grep_trim.py<br/>Grep 출력 트림"]]
+    H --> J[["bash_trim.py<br/>Bash 출력 트림"]]
+    I --> K[Claude 응답]
+    J --> K
+    K -.세션 종료.-> L[["session_autopsy.sh<br/>낭비 부검 · 실패 수집"]]
+
+    classDef hook fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a;
+    class B,C,D,F,G,I,J,L hook;
+```
 
 ### 항상 켜져 있는 결정론 훅 (LLM 호출 없음)
 
