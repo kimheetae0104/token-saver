@@ -17,6 +17,8 @@ CLI:
   measure.py --all               세션 간 추세
   measure.py --statusline        stdin JSON(transcript_path) → 한 줄
   measure.py --score --quality Q --tokens N   OckScore/quality-per-1k
+  measure.py --suggest-tier [--oracle] [--batch-size N] [--semantic-risk] [--high-stakes]
+                                  서브에이전트 위임 시 모델 티어 추천(라우팅 사다리, 조언용)
 """
 import json
 import sys
@@ -132,6 +134,84 @@ def total_input(u):
     return (u.get("input_tokens", 0)
             + u.get("cache_creation_input_tokens", 0)
             + u.get("cache_read_input_tokens", 0))
+
+
+# ── 라우팅 사다리 추천 ──
+AVAILABLE_TIERS = tuple(BASE_IN)  # ("opus", "sonnet", "haiku", "fable") — BASE_IN에 이미 있는 것만
+
+
+def suggest_tier(has_oracle=False, batch_size=1, semantic_risk=False, high_stakes=False):
+    """CLAUDE.md 라우팅 사다리 규칙(15행)을 결정론적으로 적용해 서브에이전트(Agent 도구) 위임
+    시 모델 티어를 추천한다. Agent 호출을 가로채거나 모델을 자동으로 바꾸지 않는다 — Claude
+    Code에는 그런 개입 지점이 없다(메인 응답이든 서브에이전트 스폰이든, 실행 전에 하네스가
+    끼어들어 모델을 재선택해주는 훅이 없음). 위임 여부·모델을 결정하는 건 언제나 호출부
+    (어시스턴트)이고, 이 함수는 그 판단에 참고할 근거를 CLAUDE.md/experiments/PROTOCOL.md에
+    이미 문서화된 실측 수치 그대로 돌려주는 조언 도구다 — 새로 지어낸 임계값 없음.
+
+    분류축은 자유 텍스트 설명이 아니라 구조화된 플래그다: 실험9에서 프로즈 채점(키워드
+    루브릭)이 위양성·위음성을 실측으로 냈으므로, "복잡한지" 판단 자체는 여기서 자동화하지
+    않고 호출부가 이미 내린 판단(오라클 유무·배치 크기·의미론적 위험·고위험 여부)을 그대로
+    받아 사다리 규칙만 결정론적으로 적용한다.
+
+    인자:
+      has_oracle: compile/test/lint/schema 등 값싼 검증 수단이 있는지.
+      batch_size: 유사한 반복 작업 건수(오라클 없을 때만 갈림).
+      semantic_risk: 튜플 언패킹 LHS 순서 등 실험7이 찾은 Haiku 실패 경계에 해당하는
+        미묘한 의미론적 판단이 필요한지.
+      high_stakes: 실패 시 되돌리기 어렵거나 비용이 큰지.
+
+    반환: {"tier", "effort", "reason", "escalation"(다음 단계 리스트 또는 None), "note"(부가정보 또는 None)}
+    """
+    if has_oracle:
+        return {
+            "tier": "haiku", "effort": "low",
+            "reason": ("오라클(compile/test/lint/schema)로 저비용 검증 가능 — 실험8: "
+                       "오라클 있는 과제에서 Sonnet 직행 대비 3.09배 저렴, N=30 벤치마크 "
+                       "실패율 상한 95% CI ~10%"),
+            "escalation": ["haiku(프롬프트 강화 재시도)", "sonnet"],
+            "note": None,
+        }
+    if semantic_risk and high_stakes:
+        return {
+            "tier": "opus", "effort": "high",
+            "reason": ("의미론적 판단(실험7: 튜플 언패킹 LHS 순서 등 Haiku 실패 경계) + "
+                       "고위험 + 오라클 없음 — CLAUDE.md '오라클 없고 고위험이면 Sonnet "
+                       "이상부터'를 가장 보수적으로 적용"),
+            "escalation": None,
+            "note": ("Sonnet/Opus의 정확한 경계는 실측 미문서화 — 두 조건이 겹칠 때만 "
+                     "보수적으로 Opus, 하나만 해당하면 Sonnet 권장"),
+        }
+    if semantic_risk or high_stakes:
+        return {
+            "tier": "sonnet", "effort": "high" if semantic_risk else "default",
+            "reason": ("오라클 없음 + (의미론적 판단 또는 고위험) — 실험7이 확인한 Haiku "
+                       "실패 경계에 걸릴 수 있어 Sonnet 직행"),
+            "escalation": None,
+            "note": None,
+        }
+    if batch_size >= 20:
+        return {
+            "tier": "haiku", "effort": "low",
+            "reason": ("오라클 없어도 대규모 반복(N≥20)+배치판정이면 사다리가 유리 — "
+                       "실험9 후속2·6: 0.35~0.44배, 에스컬레이션률 2.86%(Wilson 95% CI "
+                       "0.8~9.8%)"),
+            "escalation": ["sonnet(배치판정)"],
+            "note": "배치 판정 입력은 반드시 원문 그대로 — 요약하면 판정이 오염됨(실험9 후속3 교훈)",
+        }
+    if batch_size < 10:
+        return {
+            "tier": "sonnet", "effort": "default",
+            "reason": ("오라클 없음 + 소표본(N<10) — 에스컬레이션 1건만 나와도 사다리가 "
+                       "베이스라인보다 비싸짐(실험9), Sonnet 직행이 안전"),
+            "escalation": None,
+            "note": None,
+        }
+    return {
+        "tier": "sonnet", "effort": "default",
+        "reason": "오라클 없음 + N 10~19 — 사다리 유·불리 실측 공백 구간, 안전하게 Sonnet 직행",
+        "escalation": None,
+        "note": "N≥20으로 늘어나면 배치판정 사다리가 유리해질 수 있음(N≥20 조건 참고)",
+    }
 
 
 # ── 파싱 ──
@@ -875,6 +955,23 @@ def do_capture_failures(path, data_dir=None):
         print(text)
 
 
+def suggest_tier_text(has_oracle=False, batch_size=1, semantic_risk=False, high_stakes=False):
+    """suggest_tier()의 사람이 읽는 한 줄 요약. do_suggest_tier()·MCP 서버 공용."""
+    rec = suggest_tier(has_oracle=has_oracle, batch_size=batch_size,
+                        semantic_risk=semantic_risk, high_stakes=high_stakes)
+    line = f"추천: {rec['tier']}(effort={rec['effort']}) — {rec['reason']}"
+    if rec["escalation"]:
+        line += f" · 실패 시: {' → '.join(rec['escalation'])}"
+    if rec["note"]:
+        line += f" · 참고: {rec['note']}"
+    return line
+
+
+def do_suggest_tier(has_oracle, batch_size, semantic_risk, high_stakes):
+    print(suggest_tier_text(has_oracle=has_oracle, batch_size=batch_size,
+                             semantic_risk=semantic_risk, high_stakes=high_stakes))
+
+
 def main():
     ap = argparse.ArgumentParser(add_help=True)
     ap.add_argument("session", nargs="?", help="세션 JSONL 경로(기본: 최신)")
@@ -888,8 +985,15 @@ def main():
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--quality", type=float)
     ap.add_argument("--tokens", type=int)
+    ap.add_argument("--suggest-tier", action="store_true", help="서브에이전트 위임 시 모델 티어 추천(라우팅 사다리)")
+    ap.add_argument("--oracle", action="store_true", help="compile/test/lint/schema 등 값싼 검증 수단 있음")
+    ap.add_argument("--batch-size", type=int, default=1, help="유사 반복 작업 건수(기본 1)")
+    ap.add_argument("--semantic-risk", action="store_true", help="튜플 언패킹 등 미묘한 의미론적 판단 필요(실험7)")
+    ap.add_argument("--high-stakes", action="store_true", help="실패 시 되돌리기 어렵거나 비용 큼")
     args = ap.parse_args()
 
+    if args.suggest_tier:
+        return do_suggest_tier(args.oracle, args.batch_size, args.semantic_risk, args.high_stakes)
     if args.statusline:
         return do_statusline()
     if args.check:

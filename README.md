@@ -3,13 +3,13 @@
 Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아니라 **토큰당 아웃풋 극대화** —
 자세한 철학은 [CLAUDE.md](CLAUDE.md), 수치 근거는 [experiments/PROTOCOL.md](experiments/PROTOCOL.md) 참고.
 
-![version](https://img.shields.io/badge/version-0.3.6-blue)
+![version](https://img.shields.io/badge/version-0.3.7-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-162%2F162_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-175%2F175_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.6, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.7, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -53,7 +53,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.6, 초기 단계입니다.
+현재 v0.3.7, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
@@ -140,7 +140,14 @@ flowchart TD
 - **모델 티어 라우팅 사다리**
   기계적 작업은 Haiku 1차 시도 → 오라클(compile/test) 검증 → 실패 시만 상향. 실측:
   오라클 있는 과제에서 Sonnet 직행 대비 3.09배 저렴, 사다리의 "실패 시 상향" 비용은 0
-  (N=30 벤치마크에서 실패 0건, 실패율 상한 95% CI ~10%).
+  (N=30 벤치마크에서 실패 0건, 실패율 상한 95% CI ~10%). **자동으로 일어나지는
+  않는다** — Claude Code에는 메인 응답이나 서브에이전트 스폰 전에 끼어들어 모델을
+  재선택해주는 개입 지점이 없어서, 사다리를 실제로 적용하는 건 언제나 어시스턴트가
+  `Agent` 도구 호출에서 `model`을 직접 고르는 판단이다. `token_saver_suggest_tier`
+  MCP 툴(`measure.py --suggest-tier`로도 동일 호출)이 오라클 유무·배치 크기·의미론적
+  위험·고위험 여부를 받아 이 규칙을 결정론적으로 적용한 추천·근거·에스컬레이션 경로를
+  돌려준다 — "이 작업이 복잡한지" 자체를 대신 판단해주진 않는다(프로즈 채점은 위양성·
+  위음성이 실측됨, 실험9).
 - **매 턴 효율 상태 주입**
   프롬프트 제출마다(`--check`) 누적 토큰·캐시 적중률·비용·효율 점수를 한 줄로 계산해
   Claude 자신의 컨텍스트에 주입 — 컨텍스트 비대·캐시 적중 저하는 같은 줄에 경고 추가,

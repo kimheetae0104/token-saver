@@ -100,6 +100,19 @@ def tool_config_reset(args=None):
     return f"{hook_name or '전체'} 설정을 기본값으로 복원했습니다."
 
 
+def tool_suggest_tier(args=None):
+    """token_saver_suggest_tier(has_oracle?, batch_size?, semantic_risk?, high_stakes?) —
+    measure.suggest_tier()를 그대로 노출. 모델을 자동으로 바꾸지 않는다(그런 개입 지점이
+    없음) — 호출부가 추천을 보고 실제 Agent 호출에 model을 직접 지정해야 적용된다."""
+    args = args or {}
+    return measure.suggest_tier_text(
+        has_oracle=bool(args.get("has_oracle", False)),
+        batch_size=int(args.get("batch_size", 1)),
+        semantic_risk=bool(args.get("semantic_risk", False)),
+        high_stakes=bool(args.get("high_stakes", False)),
+    )
+
+
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 
 TOOLS = {
@@ -163,6 +176,30 @@ TOOLS = {
             "type": "object",
             "properties": {"hook": {"type": "string",
                                      "enum": ["read_guard", "grep_trim", "bash_trim", "prompt_gate"]}},
+        },
+    },
+    "token_saver_suggest_tier": {
+        "description": (
+            "서브에이전트(Agent 도구)로 위임할 작업의 모델 티어를 CLAUDE.md 라우팅 사다리 "
+            "규칙에 따라 추천한다. 자동으로 모델을 바꾸지 않는다 — Claude Code엔 그런 개입 "
+            "지점이 없어서, 이 툴 호출 후 실제 Agent 호출 시 추천된 tier를 model 파라미터에 "
+            "직접 지정해야 적용된다. has_oracle(compile/test/lint/schema 등 값싼 검증 가능, "
+            "기본 false), batch_size(유사 반복 작업 건수, 기본 1), semantic_risk(튜플 언패킹 "
+            "등 미묘한 의미론적 판단 필요, 기본 false), high_stakes(실패 시 되돌리기 어렵거나 "
+            "비용 큼, 기본 false)를 넘기면 haiku/sonnet/opus 중 추천·근거·실패 시 에스컬레이션 "
+            "경로를 반환한다. '이 작업이 복잡한지' 자체를 대신 판단해주진 않는다 — 그 판단은 "
+            "호출부(어시스턴트)가 이미 내린 뒤 플래그로 넘겨야 함(실험9: 프로즈 채점은 "
+            "위양성·위음성이 실측됨)."
+        ),
+        "handler": tool_suggest_tier,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "has_oracle": {"type": "boolean"},
+                "batch_size": {"type": "integer"},
+                "semantic_risk": {"type": "boolean"},
+                "high_stakes": {"type": "boolean"},
+            },
         },
     },
 }

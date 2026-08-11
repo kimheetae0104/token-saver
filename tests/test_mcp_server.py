@@ -171,6 +171,27 @@ def test_config_set_accepts_prompt_gate_hook():
         assert "적용됨" in text, text
 
 
+def test_tools_list_includes_suggest_tier():
+    resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])
+    names = {t["name"] for t in resp[0]["result"]["tools"]}
+    assert "token_saver_suggest_tier" in names
+
+
+def test_suggest_tier_tool_default_recommends_sonnet():
+    resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                   "params": {"name": "token_saver_suggest_tier", "arguments": {}}}])
+    text = resp[0]["result"]["content"][0]["text"]
+    assert text.startswith("추천: sonnet"), text
+
+
+def test_suggest_tier_tool_with_oracle_recommends_haiku():
+    resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                   "params": {"name": "token_saver_suggest_tier",
+                              "arguments": {"has_oracle": True}}}])
+    text = resp[0]["result"]["content"][0]["text"]
+    assert text.startswith("추천: haiku"), text
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0
