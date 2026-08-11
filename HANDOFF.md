@@ -650,9 +650,11 @@ N=0을 브리프 지시대로 직접 파고든 결과 **표본 부족이 아니�
 확인. 실제 플러그인 데이터 디렉터리에 `ladder_gate` 상태 파일 106개가 쌓여 있고 그중
 3개는 `consulted: true`(1차 게이트=컨설트 강제는 정상)지만 **106개 전부
 `recommended_tier`가 비어 있다** — 이번 세션 자신의 트랜스크립트에서 확인한 실제 MCP
-응답은 `content`가 `[{"type":"text","text":"추천: ..."}]` **리스트**로 오는데,
-`hooks/ladder_gate.py`의 `_extract_recommended_tier()`는 `str`/`dict`만 처리하고
-`list` 분기가 없어 매번 `None`을 반환(재현 확인됨). 파급: "추천/실제 불일치 1회
+응답은 `tool_response` 필드 자체가 `[{"type":"text","text":"추천: ..."}]` 형태로
+**리스트**로 오는데(`{"content": [...]}` dict로 감싸여 오는 게 아님), `hooks/ladder_gate.py`의
+`_extract_recommended_tier()`는 `str`과, `content` 키를 가진 `dict`만 처리하고
+`tool_response` 자체가 `list`인 경우의 분기가 없어 매번 `None`을 반환(재현 확인됨).
+파급: "추천/실제 불일치 1회
 재확인"(커밋 `1b8668d`)과 "실사용 로깅"(커밋 `3ec5460`/`5d475a4`) 두 강화 기능이
 프로덕션에서 전부 죽은 코드였다. 코드 변경 없음(이번 태스크는 조사·기록까지, 수정은
 다음 세션 1순위로 넘김).
@@ -674,4 +676,4 @@ haiku 겹침)은 Task3 재측정(production_failures.jsonl 142줄, 변화 없음
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
 3. `python3 measure.py --all` 로 이전 세션 대비 효율 비교하며 시작.
-4. "열린 스레드" 중 하나 골라 진행.
+4. 위 "Phase 2" 절의 **"다음에 고를 것(순위 1~2위)"** 표에서 하나 골라 진행.

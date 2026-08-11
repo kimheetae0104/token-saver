@@ -104,9 +104,12 @@ Task3 보고서는 `ladder_gate_events/`가 N=0이라는 것만 확인하고 "�
 축적 대기"로 판단 보류했다. 이 태스크(Task5)에서 브리프 지시대로 `hooks/ladder_gate.py`와
 `measure.py`를 직접 열어 조사한 결과, 이건 표본 부족이 아니라 **재현 가능한 파싱 버그**다.
 
-- 실제 플러그인 데이터 디렉터리(`~/.claude/plugins/data/token-saver-*/ladder_gate/`)에
-  세션당 상태 파일 106개가 쌓여 있고, 그중 3개는 `consulted: true`(게이트 자체는 정상
-  작동 — 컨설트 전엔 확실히 막힘)지만 **106개 전부 `recommended_tier` 필드가 없다.**
+- 실제 플러그인 데이터 디렉터리는 `~/.claude/plugins/data/token-saver-*/ladder_gate/`
+  글롭에 매치되는 두 곳이다: `token-saver-token-saver-tools/ladder_gate/`(세션당 상태
+  파일 106개)와 `token-saver-inline/ladder_gate/`(6개, 그중 1개는 `consulted: true`).
+  두 디렉터리 합쳐 `consulted: true`가 총 3개(게이트 자체는 정상 작동 — 컨설트 전엔
+  확실히 막힘)지만 **파일 전부(106+6=112개) `recommended_tier` 필드가 없다** — 두
+  디렉터리 모두 같은 패턴이라 근거가 더 강해진다.
 - 이번 세션(`694f2287-...`) 자신의 트랜스크립트에서 `token_saver_suggest_tier` MCP 툴의
   실제 응답을 직접 확인: `content`가 `{"type":"text","text":"추천: haiku(...) — ..."}`를
   담은 **리스트**로 온다(`[{"type":"text","text":...}]`), dict로 감싸여 오지 않는다.
@@ -119,8 +122,10 @@ Task3 보고서는 `ladder_gate_events/`가 N=0이라는 것만 확인하고 "�
 - 파급: `recommended_tier`가 한 번도 안 채워지니 `ladder_gate.py`의 "추천/실제 불일치
   1회 재확인"(2026-08-11 강화, 커밋 `1b8668d`)과 "실사용 로깅"(커밋 `3ec5460`/`5d475a4`)
   **두 강화 기능 모두 프로덕션에서 죽은 코드**였다 — 컨설트를 강제하는 1차 게이트(deny
-  until consulted)만 정상 동작. README·CLAUDE.md가 암시하는 "추천/실제 티어 일치율"은
-  이 버그가 고쳐지고 데이터가 새로 쌓이기 전까진 원리적으로 계산 불가능하다.
+  until consulted)만 정상 동작. README/CLAUDE.md엔 "추천/실제 티어 일치율" 같은 구체적
+  수치는 없지만(`grep -n "일치율\|준수율" README.md CLAUDE.md` 결과 무매치, 확인됨),
+  사다리 라우팅의 실사용 준수도를 재는 유일한 데이터 소스가 이 로그라서 이 버그가
+  고쳐지고 데이터가 새로 쌓이기 전까진 원리적으로 계산 불가능하다.
 
 ### 소싱 2 — HANDOFF 기존 열린 스레드 재확인 (상태 변화 없음)
 
@@ -145,7 +150,7 @@ Task3 재측정(`production_failures.jsonl` 142줄, 계획 시점과 동일·0�
 
 | 순위 | 항목 | 설명 | 가치 | 비용 | 블로커 | 소스 |
 |---|---|---|---|---|---|---|
-| 1 | ladder_gate 추천 티어 파싱 버그 수정 | `_extract_recommended_tier()`에 `list`(실제 MCP PostToolUse payload 형태) 분기 추가 — 재현 코드 확보, 실제 payload 형태로 회귀테스트 교체/추가 | 높음 — 죽어있던 "불일치 재확인" + "실사용 로깅" 두 기능을 살려 README/CLAUDE.md가 암시하는 사다리 준수율을 처음으로 실측 가능하게 함 | 낮음 — 함수 하나에 분기 추가 수준(~10줄), 기존 106개 상태파일 데이터엔 영향 없음(신규 세션부터 정상 기록) | 없음, 바로 착수 가능 | 1(Task3 판단보류 항목, 이번 조사로 확인된 버그로 격상) |
+| 1 | ladder_gate 추천 티어 파싱 버그 수정 | `_extract_recommended_tier()`에 `list`(실제 MCP PostToolUse payload 형태) 분기 추가 — 재현 코드 확보, 실제 payload 형태로 회귀테스트 교체/추가 | 높음 — 죽어있던 "불일치 재확인" + "실사용 로깅" 두 기능을 살려, README/CLAUDE.md엔 없는 수치이지만 사다리 라우팅 실사용 준수도를 재는 유일한 데이터 소스인 이 로그를 처음으로 실측 가능하게 함 | 낮음 — 함수 하나에 분기 추가 수준(~10줄), 기존 106개 상태파일 데이터엔 영향 없음(신규 세션부터 정상 기록) | 없음, 바로 착수 가능 | 1(Task3 판단보류 항목, 이번 조사로 확인된 버그로 격상) |
 | 2 | 문서 인용 정합성 자동 검증 스크립트 | TOKEN-GUIDE.md/README 등이 "실험N"을 인용할 때 PROTOCOL.md에 그 번호가 실제 존재하는지 grep 기반으로 결정론 검사(pytest 또는 CI 스텝) | 중간 — Task2가 발견한 오귀속 2건 같은 재발을 자동 차단 | 낮음 — LLM 없이 grep/스크립트만(AI-YAGNI 준수) | 없음 | 2(Task2 후속), 3 |
 | 3 | production_failures 정체 원인 코드 리뷰 | `capture_failures()` 탐지 로직이 2026-08-08 근본원인 수정 이후 실제로 새 실패를 안 만나는 건지, 아니면 새 패턴을 놓치고 있는 사각지대가 있는지 정적으로 검토 | 중간 — 측정 파이프라인 자체의 건강성 확인 | 중간 — 로직을 꼼꼼히 다시 읽고 커버리지 갭을 추론해야 함 | 없음(코드 리뷰만, 실측 불필요) | 1, 3 |
 | 4 | `suggest_tier` batch_size 자동 추정 | Agent 호출 직전 컨텍스트에서 위임 대상 개수를 세어 `batch_size` 파라미터를 자동 채움(왕복 축소) | 낮음~중간 — 이미 수동 입력이 저비용이라 절감 폭 작음 | 중간 — "무엇을 셀지" 판단이 프로즈 분류로 새는 순간 실험9 함정 재현 위험, 신중 설계 필요 | 설계 확정 전까지 보류 | 3(가설) |
