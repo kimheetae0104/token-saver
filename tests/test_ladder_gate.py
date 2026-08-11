@@ -186,6 +186,19 @@ def test_mark_consulted_extracts_tier_from_mcp_content_shape():
         assert state["recommended_tier"] == "opus", state
 
 
+def test_mark_consulted_extracts_tier_from_bare_list_shape():
+    """실전 MCP 페이로드는 tool_response 필드 자체가 {"content":[...]} 딕셔너리가 아니라
+    바로 [{"type":"text","text":...}] 리스트로 오는 경우가 있다(실측, 2026-08-11 로드맵 1순위 —
+    그동안 이 경로가 없어 mismatch 재확인·usage 로깅이 조용히 죽어 있었다)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output=[{"type": "text", "text": "추천: sonnet(effort=high) — ..."}])
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "sonnet", state
+
+
 def test_mismatched_tier_denies_once_then_allows():
     with tempfile.TemporaryDirectory() as data_dir:
         _call(session_id="sess-1", mode="--reset", data_dir=data_dir)

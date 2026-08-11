@@ -76,8 +76,9 @@ def _tier_of(model):
 def _extract_recommended_tier(payload):
     """PostToolUse payload에서 suggest_tier 응답 텍스트를 찾아 추천 티어를 뽑는다.
     필드명이 문서와 실제 배선에서 다를 수 있어(grep_trim.py의 OUTPUT_FIELD_CANDIDATES와
-    동일 이유) 후보를 순서대로 시도, MCP 응답은 {"content":[{"type":"text","text":...}]}
-    형태일 수도 있어 그 경로도 함께 시도. 못 찾으면 None(그래도 consulted 자체는 기록됨 —
+    동일 이유) 후보를 순서대로 시도. MCP 응답은 {"content":[{"type":"text","text":...}]}
+    형태일 수도, 필드 자체가 바로 [{"type":"text","text":...}] 리스트로 올 수도 있어(실측,
+    2026-08-11) 두 경로 모두 시도. 못 찾으면 None(그래도 consulted 자체는 기록됨 —
     이 부가정보는 있으면 강화, 없어도 기본 게이트는 그대로 동작하는 fail-open 설계)."""
     for field in _RESPONSE_FIELD_CANDIDATES:
         val = payload.get(field)
@@ -88,6 +89,9 @@ def _extract_recommended_tier(payload):
             content = val.get("content")
             if isinstance(content, list) and content and isinstance(content[0], dict):
                 text = content[0].get("text")
+        elif isinstance(val, list):
+            if val and isinstance(val[0], dict):
+                text = val[0].get("text")
         if isinstance(text, str):
             m = _RECOMMEND_RE.match(text.strip())
             if m:
