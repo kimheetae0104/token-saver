@@ -233,6 +233,84 @@ def test_no_recommended_tier_parsed_skips_mismatch_check():
         assert resp is None
 
 
+def _events_path(data_dir, session_id):
+    return os.path.join(data_dir, "ladder_gate_events", f"{session_id}.jsonl")
+
+
+def _read_events(data_dir, session_id):
+    path = _events_path(data_dir, session_id)
+    if not os.path.isfile(path):
+        return []
+    with open(path) as f:
+        return [json.loads(ln) for ln in f if ln.strip()]
+
+
+def test_matched_call_logs_resolution_with_matched_true():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        _call(session_id="sess-1", data_dir=data_dir,
+              tool_input={"model": "claude-haiku-4-5-20251001"})
+        events = _read_events(data_dir, "sess-1")
+        assert len(events) == 1, events
+        assert events[0]["recommended_tier"] == "haiku", events
+        assert events[0]["requested_tier"] == "haiku", events
+        assert events[0]["matched"] is True, events
+
+
+def test_no_model_call_logs_resolution_with_matched_none():
+    """model 파라미터를 안 넘긴 흔한 경우 — matched는 '모름'을 뜻하는 None으로 남는다."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: sonnet(effort=default) — ...")
+        _call(session_id="sess-1", data_dir=data_dir, tool_input={})
+        events = _read_events(data_dir, "sess-1")
+        assert len(events) == 1, events
+        assert events[0]["requested_tier"] is None, events
+        assert events[0]["matched"] is None, events
+
+
+def test_mismatch_then_retry_logs_matched_false_not_the_deny():
+    """불일치 재확인(deny) 자체는 로그되지 않고, 그 뒤 실제로 통과된 호출만 로그된다 —
+    deny는 병렬 재시도 등으로 여러 번 뜰 수 있어 그대로 로그하면 부풀려짐."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        _call(session_id="sess-1", data_dir=data_dir,
+              tool_input={"model": "claude-sonnet-5-20260101"})  # deny (불일치 1회)
+        _call(session_id="sess-1", data_dir=data_dir,
+              tool_input={"model": "claude-sonnet-5-20260101"})  # 재시도 -> allow
+        events = _read_events(data_dir, "sess-1")
+        assert len(events) == 1, events  # deny 턴은 로그 안 됨
+        assert events[0]["matched"] is False, events
+        assert events[0]["requested_tier"] == "sonnet", events
+
+
+def test_multiple_agent_calls_same_turn_log_multiple_resolutions():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="추천: haiku(effort=low) — ...")
+        for _ in range(3):
+            _call(session_id="sess-1", data_dir=data_dir,
+                  tool_input={"model": "claude-haiku-4-5-20251001"})
+        events = _read_events(data_dir, "sess-1")
+        assert len(events) == 3, events
+
+
+def test_no_recommended_tier_skips_resolution_logging():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output="이상한 형식")  # 파싱 실패 -> recommended_tier 없음
+        _call(session_id="sess-1", data_dir=data_dir,
+              tool_input={"model": "claude-opus-5-20260101"})
+        assert _read_events(data_dir, "sess-1") == []
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

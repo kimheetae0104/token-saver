@@ -550,6 +550,68 @@ def test_do_check_silent_when_no_transcript():
     assert _run_do_check({"transcript_path": "/no/such/file.jsonl"}) is None
 
 
+def test_ladder_gate_summary_empty_when_no_log():
+    summary = measure.ladder_gate_summary_for_session("no-such-session")
+    assert summary == {"resolutions": 0, "matched": 0, "mismatched": 0, "tiers": {}}, summary
+
+
+def test_ladder_gate_summary_aggregates_log():
+    with tempfile.TemporaryDirectory() as plugin_data:
+        events_dir = os.path.join(plugin_data, "ladder_gate_events")
+        os.makedirs(events_dir)
+        with open(os.path.join(events_dir, "fake-session.jsonl"), "w") as f:
+            f.write(json.dumps({"event": "ladder_gate_resolution", "recommended_tier": "haiku",
+                                 "requested_tier": "haiku", "matched": True, "ts": 0}) + "\n")
+            f.write(json.dumps({"event": "ladder_gate_resolution", "recommended_tier": "haiku",
+                                 "requested_tier": "sonnet", "matched": False, "ts": 1}) + "\n")
+            f.write(json.dumps({"event": "ladder_gate_resolution", "recommended_tier": "sonnet",
+                                 "requested_tier": None, "matched": None, "ts": 2}) + "\n")
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            summary = measure.ladder_gate_summary_for_session("fake-session")
+        finally:
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        assert summary == {"resolutions": 3, "matched": 1, "mismatched": 1,
+                            "tiers": {"haiku": 2, "sonnet": 1}}, summary
+
+
+def test_do_statusline_shows_ladder_resolutions():
+    import io
+    import contextlib
+
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        path = os.path.join(d, "fake-session.jsonl")
+        with open(path, "w") as f:
+            f.write(FIXTURE)
+        events_dir = os.path.join(plugin_data, "ladder_gate_events")
+        os.makedirs(events_dir)
+        with open(os.path.join(events_dir, "fake-session.jsonl"), "w") as f:
+            f.write(json.dumps({"event": "ladder_gate_resolution", "recommended_tier": "haiku",
+                                 "requested_tier": "haiku", "matched": True, "ts": 0}) + "\n")
+
+        stdin_payload = json.dumps({"transcript_path": path})
+        buf = io.StringIO()
+        old_stdin = sys.stdin
+        old_env = os.environ.get("CLAUDE_PLUGIN_DATA")
+        try:
+            sys.stdin = io.StringIO(stdin_payload)
+            os.environ["CLAUDE_PLUGIN_DATA"] = plugin_data
+            with contextlib.redirect_stdout(buf):
+                measure.do_statusline()
+        finally:
+            sys.stdin = old_stdin
+            if old_env is None:
+                os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+            else:
+                os.environ["CLAUDE_PLUGIN_DATA"] = old_env
+        out = buf.getvalue()
+        assert "사다리 1회(추천대로 1)" in out, out
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0

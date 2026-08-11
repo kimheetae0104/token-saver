@@ -340,6 +340,53 @@ def gate_trips_for_session(session_id):
     return n
 
 
+# ── 라우팅 사다리 실사용 로그(hooks/ladder_gate.py) ──
+def ladder_gate_log_dir():
+    """hooks/ladder_gate.py의 events_dir()와 정확히 같은 경로 규약. gate_events(prompt_gate
+    전용)와는 별도 디렉터리 — 섞으면 gate_trips_for_session()의 카운트가 오염된다."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "ladder_gate_events") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-ladder-gate-events")
+
+
+def ladder_gate_summary_for_session(session_id):
+    """세션별 사다리 실제 적용 요약 — 전부 실제로 일어난 사실만 집계한다(추천 티어·실제
+    model·일치 여부). $환산은 여기서 하지 않는다: '다른 티어로 돌렸으면 얼마였을까'는
+    실제로 일어나지 않은 대안의 비용을 추정하는 것이라 RTK류 허수 counterfactual 함정과
+    같다(README '시장 비교' 참고) — 실 $ 비교가 필요하면 이 로그가 쌓인 뒤
+    actor_breakdown()의 실측 토큰과 대조할 것. 로그 없으면 전부 0(정상).
+
+    주의(코드리뷰로 발견, 2026-08-11): `mismatched`는 "추천과 다른 티어로 위임"의 총합일
+    뿐, 원인은 못 가른다 — CLAUDE.md 사다리 정책 자체가 "Haiku 실패시 Sonnet으로 상향"을
+    명시하므로, 같은 턴에서 추천(haiku)대로 시도했다가 검증 실패로 정당하게 Sonnet으로
+    올린 경우도 여기 잡힌다(recommended_tier가 턴 단위로 고정이라 재호출을 구분 못 함).
+    "무모한 이탈 건수"로 해석하면 과잉해석 — 그냥 "추천과 실제가 갈린 총 횟수"로 읽을 것."""
+    path = os.path.join(ladder_gate_log_dir(), f"{session_id or ''}.jsonl")
+    resolutions = matched = mismatched = 0
+    tiers = {}
+    if session_id and os.path.isfile(path):
+        with open(path, "r", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                resolutions += 1
+                tier = rec.get("recommended_tier")
+                if tier:
+                    tiers[tier] = tiers.get(tier, 0) + 1
+                m = rec.get("matched")
+                if m is True:
+                    matched += 1
+                elif m is False:
+                    mismatched += 1
+    return {"resolutions": resolutions, "matched": matched, "mismatched": mismatched,
+            "tiers": tiers}
+
+
 def session_id_from_path(path):
     return os.path.splitext(os.path.basename(path))[0] if path else None
 
@@ -714,6 +761,14 @@ def print_report(path):
           f"  [read_guard 재독 차단 + grep_trim 트림 합산]")
     trips = gate_trips_for_session(session_id_from_path(path))
     print(f"  4슬롯 게이트 개입: {trips}회  [prompt_gate가 모호한 요청의 첫 도구 호출을 막은 횟수]")
+    ladder = ladder_gate_summary_for_session(session_id_from_path(path))
+    if ladder["resolutions"]:
+        tiers_str = ", ".join(f"{k}×{v}" for k, v in sorted(ladder["tiers"].items()))
+        print(f"  사다리 실적용: {ladder['resolutions']}회(추천대로 {ladder['matched']}·"
+              f"추천과 다름 {ladder['mismatched']}·모름 "
+              f"{ladder['resolutions']-ladder['matched']-ladder['mismatched']})  "
+              f"추천분포: {tiers_str}  [ladder_gate 실측, $환산 안 함 — '다름'엔 정당한 "
+              f"검증실패 후 상향도 포함, 무모한 이탈로 오독 금지]")
     print(f"  프록시  병렬={px['parallelism']*100:.0f}%  read_thrash={px['read_thrash']*100:.0f}%"
           f"  correction={px['correction']*100:.0f}%  clarify={px['clarify']}"
           f"  verbosity={px['verbosity']:.0f}/턴  agents={px['n_agent_spawns']}")
@@ -773,6 +828,7 @@ def print_all():
     print(f"\n== 세션 간 추세 ==  ({len(files)} 세션, {cost_label()})")
     print(f"  {'세션':22} {'턴':>5} {'총토큰':>12} {'적중%':>6} {'효율':>5} {'비용':>10}")
     tot_tokens = tot_cost = tot_cache_savings = tot_blocked = tot_trips = 0
+    tot_ladder_resolutions = tot_ladder_matched = 0
     hits = []
     for p in files:
         sess = parse_session(p)
@@ -784,6 +840,9 @@ def print_all():
         tot_cache_savings += tot["cache_savings"]
         tot_blocked += token_savings_for_session(session_id_from_path(p))
         tot_trips += gate_trips_for_session(session_id_from_path(p))
+        ladder = ladder_gate_summary_for_session(session_id_from_path(p))
+        tot_ladder_resolutions += ladder["resolutions"]
+        tot_ladder_matched += ladder["matched"]
         hits.append(tot["cache_hit"])
         print(f"  {os.path.basename(p)[:22]:22} {tot['turns']:>5} "
               f"{fmt(tot['total_tokens']):>12} {tot['cache_hit']*100:>5.0f}% "
@@ -794,6 +853,9 @@ def print_all():
     print(f"  누적 캐시 절감: {money(tot_cache_savings)}   "
           f"누적 차단·트림 절감(추정): ~{fmt(tot_blocked)}tok   "
           f"누적 게이트 개입: {tot_trips}회")
+    if tot_ladder_resolutions:
+        print(f"  누적 사다리 실적용: {tot_ladder_resolutions}회(추천대로 {tot_ladder_matched}) "
+              f"[ladder_gate 실측, $환산 안 함]")
 
 
 def _pace_line(per_turn):
@@ -853,6 +915,9 @@ def statusline_text(path):
     trips = gate_trips_for_session(session_id_from_path(path))
     if trips:
         line += f" · 게이트개입 {trips}회"
+    ladder = ladder_gate_summary_for_session(session_id_from_path(path))
+    if ladder["resolutions"]:
+        line += f" · 사다리 {ladder['resolutions']}회(추천대로 {ladder['matched']})"
     if per_turn:
         line = " ".join([line] + _coaching_warnings(tot, per_turn))
     return line

@@ -38,12 +38,23 @@ fail-open: session_id 없음, 상태파일 없음/손상, 어떤 예외든 조�
 절대 깨뜨리지 않는다.
 DIY 설정: config.json(config_store.py)의 ladder_gate.disabled로도 끌 수 있음. env
 킬스위치가 항상 config보다 우선.
+
+실측 로깅(2026-08-11 추가): "이게 실제로 쓰이긴 하냐"에 답하려면 지어낸 절감 추정치가
+아니라 진짜 관측 이벤트가 필요하다 — Agent 호출이 최종 allow될 때마다 추천 티어·실제
+model·둘이 일치했는지를 `ladder_gate_events/<session_id>.jsonl`에 남긴다(measure.py의
+`ladder_gate_summary_for_session()`이 읽어 리포트에 합산). **의도적으로 안 하는 것**: "이걸
+Sonnet으로 돌렸으면 얼마였을까" 같은 $ 환산은 안 한다 — 실제로 일어나지 않은 대안 실행의
+비용을 추정하는 건 반증사례(RTK: 허수 counterfactual로 절감 카운터 조작, CLAUDE.md/README
+"시장 비교" 참고)와 같은 함정이라 하지 않는다. 여기 남기는 건 전부 실제로 일어난 사실
+(추천이 뭐였는지, 실제 model이 뭐였는지)뿐이다 — $ 합산은 이 로그가 쌓인 뒤 실제 서브에이전트
+transcript의 실측 토큰(`actor_breakdown()`, 이미 존재)과 대조해서 낼 것.
 """
 import json
 import os
 import re
 import sys
 import tempfile
+import time
 
 STATE_MAX_AGE_SEC = 24 * 60 * 60
 
@@ -130,6 +141,31 @@ def read_state(session_id):
         return {}
 
 
+def events_dir():
+    """measure.py의 ladder_gate_log_dir()와 정확히 같은 경로 규약(gate_events와는 별도
+    디렉터리 — prompt_gate_trip 카운트 로직을 안 건드리려고 일부러 분리, 2026-08-11)."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    d = os.path.join(data_dir, "ladder_gate_events") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-ladder-gate-events")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def log_resolution(session_id, recommended, requested, matched):
+    try:
+        path = os.path.join(events_dir(), f"{session_id}.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps({
+                "event": "ladder_gate_resolution",
+                "recommended_tier": recommended,
+                "requested_tier": requested,
+                "matched": matched,
+                "ts": time.time(),
+            }) + "\n")
+    except Exception:
+        pass
+
+
 def allow():
     sys.exit(0)
 
@@ -196,6 +232,9 @@ def main():
             f"방금 추천은 {recommended}였는데 model={requested}로 위임하려 합니다 — "
             f"의도적이면 그대로 다시 시도하세요(통과합니다), 아니면 model을 {recommended}로 바꾸세요."
         )
+    if recommended:
+        log_resolution(session_id, recommended, requested,
+                        matched=(recommended == requested) if requested else None)
     return allow()
 
 
