@@ -8,6 +8,12 @@
         ]
       },
       {
+        "matcher": "Agent",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ladder_gate.py\"" }
+        ]
+      },
+      {
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt_gate.py\"" }
         ]
@@ -25,6 +31,12 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/bash_trim.py\"" }
         ]
+      },
+      {
+        "matcher": "mcp__plugin_token-saver_token-saver__token_saver_suggest_tier",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ladder_gate.py\" --mark-consulted" }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -32,7 +44,8 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/measure.py\" --check" },
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/intent_gate.py\"" },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/habit_coaching.py\"" }
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/habit_coaching.py\"" },
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ladder_gate.py\" --reset" }
         ]
       }
     ],

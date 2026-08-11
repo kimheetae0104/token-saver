@@ -67,11 +67,12 @@ def tool_autopsy(args=None):
 
 
 def tool_config_get(args=None):
-    """read_guard·grep_trim·bash_trim·prompt_gate의 현재 유효 설정(기본값 + DIY 오버라이드)을 사람이
-    읽을 수 있게 요약한다. Desktop Code 탭은 hooks가 안 뜨므로, 값을 바꿔도 CLI/IDE 세션에서
-    그 hook이 다음번 실행될 때 반영된다 — Desktop 자체의 자동 동작에는 영향 없음을 명시."""
+    """read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate의 현재 유효 설정(기본값 + DIY
+    오버라이드)을 사람이 읽을 수 있게 요약한다. Desktop Code 탭은 hooks가 안 뜨므로, 값을
+    바꿔도 CLI/IDE 세션에서 그 hook이 다음번 실행될 때 반영된다 — Desktop 자체의 자동
+    동작에는 영향 없음을 명시."""
     overrides = config_store.load_raw()
-    lines = ["read_guard·grep_trim·bash_trim·prompt_gate 현재 설정(*=DIY로 바뀐 값, 나머지는 기본값):"]
+    lines = ["read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate 현재 설정(*=DIY로 바뀐 값, 나머지는 기본값):"]
     for hook_name, cfg in config_store.get_all().items():
         changed = overrides.get(hook_name, {})
         parts = [f"{k}={v}{'*' if k in changed else ''}" for k, v in cfg.items()]
@@ -136,21 +137,21 @@ TOOLS = {
     },
     "token_saver_config_get": {
         "description": (
-            "read_guard(재독 차단)·grep_trim·bash_trim(긴 출력 트림)·prompt_gate의 현재 임계값과 "
-            "on/off 상태를 조회한다. 인자 없음. 사용자가 '너무 자주 막는다/너무 안 막는다' "
-            "류로 조정을 원할 때 먼저 호출해 현재값을 보여줄 것."
+            "read_guard(재독 차단)·grep_trim·bash_trim(긴 출력 트림)·prompt_gate·ladder_gate의 "
+            "현재 임계값과 on/off 상태를 조회한다. 인자 없음. 사용자가 '너무 자주 막는다/너무 "
+            "안 막는다' 류로 조정을 원할 때 먼저 호출해 현재값을 보여줄 것."
         ),
         "handler": tool_config_get,
         "input_schema": EMPTY_SCHEMA,
     },
     "token_saver_config_set": {
         "description": (
-            "read_guard·grep_trim·bash_trim·prompt_gate 중 하나의 임계값 또는 kill switch를 "
-            "DIY로 변경한다. hook: 'read_guard'|'grep_trim'|'bash_trim'|'prompt_gate'. key: "
-            "read_guard는 'disabled'|'large_file_lines', grep_trim은 'disabled'|"
-            "'match_threshold'|'keep_head'|'keep_tail', bash_trim은 'disabled'|"
-            "'line_threshold'|'keep_head'|'keep_tail', prompt_gate는 'disabled'만. value: "
-            "숫자 또는 true/false. 변경 즉시 config.json에 저장되고 해당 hook의 다음 "
+            "read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate 중 하나의 임계값 또는 kill "
+            "switch를 DIY로 변경한다. hook: 'read_guard'|'grep_trim'|'bash_trim'|'prompt_gate'"
+            "|'ladder_gate'. key: read_guard는 'disabled'|'large_file_lines', grep_trim은 "
+            "'disabled'|'match_threshold'|'keep_head'|'keep_tail', bash_trim은 'disabled'|"
+            "'line_threshold'|'keep_head'|'keep_tail', prompt_gate·ladder_gate는 'disabled'만. "
+            "value: 숫자 또는 true/false. 변경 즉시 config.json에 저장되고 해당 hook의 다음 "
             "실행부터 반영된다(현재 실행 중인 호출엔 소급 적용 안 됨)."
         ),
         "handler": tool_config_set,
@@ -158,7 +159,7 @@ TOOLS = {
             "type": "object",
             "properties": {
                 "hook": {"type": "string",
-                          "enum": ["read_guard", "grep_trim", "bash_trim", "prompt_gate"]},
+                          "enum": ["read_guard", "grep_trim", "bash_trim", "prompt_gate", "ladder_gate"]},
                 "key": {"type": "string"},
                 "value": {},
             },
@@ -168,14 +169,14 @@ TOOLS = {
     "token_saver_config_reset": {
         "description": (
             "token_saver_config_set으로 바꾼 값을 기본값으로 되돌린다. hook을 지정하면 "
-            "그 hook만, 생략하면 전체(read_guard·grep_trim·bash_trim·prompt_gate 모두)를 "
-            "초기화한다."
+            "그 hook만, 생략하면 전체(read_guard·grep_trim·bash_trim·prompt_gate·ladder_gate "
+            "모두)를 초기화한다."
         ),
         "handler": tool_config_reset,
         "input_schema": {
             "type": "object",
             "properties": {"hook": {"type": "string",
-                                     "enum": ["read_guard", "grep_trim", "bash_trim", "prompt_gate"]}},
+                                     "enum": ["read_guard", "grep_trim", "bash_trim", "prompt_gate", "ladder_gate"]}},
         },
     },
     "token_saver_suggest_tier": {

@@ -117,12 +117,22 @@ def test_prompt_gate_defaults():
         d.cleanup()
 
 
+def test_ladder_gate_defaults():
+    d = _isolated()
+    try:
+        cfg = config_store.effective("ladder_gate")
+        check("ladder_gate_defaults", cfg == {"disabled": False}, cfg)
+    finally:
+        d.cleanup()
+
+
 def test_get_all_covers_all_hooks():
     d = _isolated()
     try:
         all_cfg = config_store.get_all()
         check("get_all_keys",
-              set(all_cfg) == {"read_guard", "grep_trim", "bash_trim", "prompt_gate"}, all_cfg)
+              set(all_cfg) == {"read_guard", "grep_trim", "bash_trim", "prompt_gate", "ladder_gate"},
+              all_cfg)
     finally:
         d.cleanup()
 

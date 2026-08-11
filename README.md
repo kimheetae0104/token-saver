@@ -3,13 +3,13 @@
 Claude Code용 토큰 효율화 플러그인. 목표는 토큰 최소화가 아니라 **토큰당 아웃풋 극대화** —
 자세한 철학은 [CLAUDE.md](CLAUDE.md), 수치 근거는 [experiments/PROTOCOL.md](experiments/PROTOCOL.md) 참고.
 
-![version](https://img.shields.io/badge/version-0.3.7-blue)
+![version](https://img.shields.io/badge/version-0.3.8-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![tests](https://img.shields.io/badge/tests-175%2F175_passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-191%2F191_passing-brightgreen)
 ![stage](https://img.shields.io/badge/stage-early_(N%3D6~7_sessions)-yellow)
 ![deps](https://img.shields.io/badge/dependencies-stdlib_only-lightgrey)
 
-> **상태: v0.3.7, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
+> **상태: v0.3.8, 초기 단계** — N=6~7 세션 실측 기반, 제3자 검증 없음, 벤더 주장 없이
 > 실측만 기록합니다. 자세한 내용은 [상태](#상태) 섹션 참고.
 
 ## 요구사항
@@ -53,7 +53,7 @@ LARGE_FILE_LINES를 500에서 300으로 낮춰줘") 전혀 개입하지 않고 �
 
 ## 상태
 
-현재 v0.3.7, 초기 단계입니다.
+현재 v0.3.8, 초기 단계입니다.
 
 - **N=6~7 세션**으로 보정한 값입니다. 제3자 검증 없음(자체 측정만).
 - `many_agents` 임계값은 outlier 세션 1건을 제외하고 정한 값이라 특히 불안정합니다.
@@ -131,6 +131,12 @@ flowchart TD
   연결어 과다·과거 회고+재확인 결합·방향전환·긴 배경설명 같은 채팅 습관 패턴을 감지해
   한 줄 피드백. `systemMessage` 필드로 사용자 화면 노출을 시도했으나 뜨지 않는 것으로
   실측 확인됨([알려진 제한사항](#알려진-제한사항) 참고) — 현재는 어시스턴트 컨텍스트에만 도달.
+- **사다리 컨설트 강제** (`ladder_gate.py`, PreToolUse matcher: `Agent`)
+  서브에이전트 위임 전에 `token_saver_suggest_tier`를 먼저 호출했는지 강제한다 —
+  안 했으면 그 Agent 호출을 막고 먼저 호출하라고 안내, 한 번 확인되면 그 턴 내내
+  계속 허용(prompt_gate와 달리 1회성 트립이 아님). **어떤 티어가 맞는지 자체는 여전히
+  안 정해준다** — 그건 결정론 코드가 할 수 없는 부분(실험9)이라, "판단을 빼먹지 못하게"
+  강제만 한다. 최종 모델 선택은 여전히 Claude의 판단.
 - **DIY 설정** (`config_store.py` + MCP `token_saver_config_*`)
   위 훅들의 임계값·kill switch를 훅 재배포 없이 조회·변경. env kill switch
   (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선.
@@ -147,7 +153,10 @@ flowchart TD
   MCP 툴(`measure.py --suggest-tier`로도 동일 호출)이 오라클 유무·배치 크기·의미론적
   위험·고위험 여부를 받아 이 규칙을 결정론적으로 적용한 추천·근거·에스컬레이션 경로를
   돌려준다 — "이 작업이 복잡한지" 자체를 대신 판단해주진 않는다(프로즈 채점은 위양성·
-  위음성이 실측됨, 실험9).
+  위음성이 실측됨, 실험9). "그럼 판단만 하고 실제로 안 지키면 어떡하냐"는 문제는
+  `ladder_gate.py`(위 [항상 켜져 있는 결정론 훅](#항상-켜져-있는-결정론-훅-llm-호출-없음))
+  가 서브에이전트 위임 전에 이 툴 호출을 강제해 메꾼다 — 티어 판단 자체는 여전히
+  자동화 못 하지만, 판단을 빼먹는 건 못 하게 만든다.
 - **매 턴 효율 상태 주입**
   프롬프트 제출마다(`--check`) 누적 토큰·캐시 적중률·비용·효율 점수를 한 줄로 계산해
   Claude 자신의 컨텍스트에 주입 — 컨텍스트 비대·캐시 적중 저하는 같은 줄에 경고 추가,

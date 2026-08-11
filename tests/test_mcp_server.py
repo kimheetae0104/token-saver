@@ -171,6 +171,29 @@ def test_config_set_accepts_prompt_gate_hook():
         assert "적용됨" in text, text
 
 
+def test_config_get_includes_ladder_gate():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_get", "arguments": {}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "ladder_gate" in text, text
+
+
+def test_config_set_accepts_ladder_gate_hook():
+    with tempfile.TemporaryDirectory() as data_dir:
+        resp = _call(
+            [{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+              "params": {"name": "token_saver_config_set",
+                         "arguments": {"hook": "ladder_gate", "key": "disabled", "value": True}}}],
+            env_extra={"CLAUDE_PLUGIN_DATA": data_dir},
+        )
+        text = resp[0]["result"]["content"][0]["text"]
+        assert "적용됨" in text, text
+
+
 def test_tools_list_includes_suggest_tier():
     resp = _call([{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}])
     names = {t["name"] for t in resp[0]["result"]["tools"]}
