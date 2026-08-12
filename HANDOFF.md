@@ -697,8 +697,21 @@ grep/CLI로 될 일):
 결론: 릴리스 블로커 없음. 우선순위표 1위 완료로 소거, 2위(문서 인용 정합성 자동 검증
 스크립트)가 다음 순번으로 승격.
 
+## 21차 — 문서 인용 정합성 자동 검증 스크립트 (2026-08-12)
+로드맵 2위 완료. `check_citations.py`(레포 루트, `measure.py`/`config_store.py`와 같은
+자리) 추가 — TOKEN-GUIDE.md/README.md/README.en.md/HANDOFF.md가 인용하는 "실험N"·
+"실험N 후속M"이 `experiments/PROTOCOL.md`의 실제 헤더(`### 실험 N`, `#### 실험 N 후속[ M]`)에
+존재하는지 grep 기반 결정론 검사(LLM 미사용, AI-YAGNI). 실행: `python3 check_citations.py`
+— 현재 4개 문서 전부 OK. `tests/test_check_citations.py` 8개(정상 매칭·존재하지 않는 번호·
+후속 번호 유무·기본번호와 후속번호 혼동 방지·문서 누락 시 무해 skip·실제 레포 문서 회귀 등)
+추가. `pytest -q`: **216/216 PASS**(기존 208 + 신규 8). CI/pre-commit 훅에 걸지는 않음(스코프
+밖, 필요해지면 다음 스레드) — 지금은 필요할 때 수동 실행하는 결정론 스크립트로만 존재.
+
+18차가 "블록됨"으로 남긴 3항목은 여전히 데이터 누적 대기 — 액션 불가 그대로.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
 3. `python3 measure.py --all` 로 이전 세션 대비 효율 비교하며 시작.
-4. 다음 순번: **문서 인용 정합성 자동 검증 스크립트**(design.md의 "Phase 2 결과" 절 2번 항목).
+4. 다음 순번: **production_failures.jsonl 정체 원인 코드 리뷰**(design.md의 "Phase 2 결과"
+   절 3번 항목 — 142줄에서 성장 없음, 로깅 경로에 ladder_gate류 버그가 또 있는지 확인).
