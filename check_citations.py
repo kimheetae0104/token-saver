@@ -43,11 +43,31 @@ def load_valid_keys(protocol_path):
 
 
 def find_citations(doc_path):
-    """(줄번호, 원문 인용 문자열, key) 목록."""
+    """(줄번호, 원문 인용 문자열, key) 목록. 줄 단위로만 검사하면 한국어 장문에서 흔한
+    소프트 줄바꿈으로 인용이 두 줄에 걸칠 때(예: "실험 9\\n후속 99") 놓친다 — 뒷줄은
+    "실험" 접두사가 없어 매칭 자체가 안 되고, 앞줄의 "실험 9"만 단독으로 유효 판정돼
+    검사망을 완전히 빠져나간다(2026-08-12 적대적 재검증 실측). 그래서 빈 줄로 구분되는
+    문단 단위로 줄을 합쳐서 검사한다 — 보고 줄번호는 문단의 첫 줄 기준(근사치)."""
     out = []
+    para_lines = []
+    para_start = 1
+
+    def flush():
+        if not para_lines:
+            return
+        joined = " ".join(para_lines)
+        for m in _CITATION_RE.finditer(joined):
+            out.append((para_start, m.group(0), _key(m.group(1), bool(m.group(2)), m.group(3))))
+
     for lineno, line in enumerate(doc_path.read_text(encoding="utf-8").splitlines(), start=1):
-        for m in _CITATION_RE.finditer(line):
-            out.append((lineno, m.group(0), _key(m.group(1), bool(m.group(2)), m.group(3))))
+        if line.strip() == "":
+            flush()
+            para_lines = []
+        else:
+            if not para_lines:
+                para_start = lineno
+            para_lines.append(line)
+    flush()
     return out
 
 

@@ -98,6 +98,17 @@ def test_missing_doc_file_is_skipped_without_error():
         assert problems == []
 
 
+def test_citation_split_across_soft_wrapped_lines_is_still_caught():
+    """2026-08-12 적대적 재검증 실측: 소프트 줄바꿈으로 인용이 두 줄에 걸치면
+    (예: "실험 9\\n후속 99") 존재하지 않는 조합인데도 놓치지 않아야 한다 —
+    수정 전엔 앞줄의 "실험 9"만 단독 매칭돼 유효 판정으로 조용히 통과했다."""
+    with tempfile.TemporaryDirectory() as d:
+        protocol = _write(d, "PROTOCOL.md", PROTOCOL_FIXTURE)
+        doc = _write(d, "GUIDE.md", "이 결과는 실험 9\n후속 99에서 재확인됨.\n")
+        ok, problems = cc.check(protocol_path=protocol, docs=[doc])
+        assert not ok, "줄바꿈으로 갈라진 인용의 존재하지 않는 조합이 감지되지 않음"
+
+
 def test_real_repo_docs_currently_pass():
     """실제 레포 문서 기준 회귀 검사 — 이 테스트가 깨지면 실제로 새 인용 오류가 생긴 것."""
     ok, problems = cc.check()

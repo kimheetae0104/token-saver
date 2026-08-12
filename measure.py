@@ -698,16 +698,32 @@ def _delegation_overhead(main_path):
     return hits, ratio
 
 
+_TASK_NUM_RE = re.compile(r"\b(?:task|step|round|wave)\s*#?\s*(\d+)\b", re.IGNORECASE)
+
+
+def _task_numbers(desc):
+    """"Task N"/"Step N"/"Round N"/"Wave N" 패턴에서 번호만 순서대로 추출. 2026-08-12
+    적대적 재검증: 숫자 토큰을 자카드 집합에 무조건 넣는 첫 수정은 "우연히 같은 한 자리
+    숫자를 공유하는 무관한 설명"까지 자카드를 인위적으로 끌어올리는 반대급부 오탐을
+    새로 만드는 게 실측됨(예: 둘 다 끝에 "5"가 붙는 서로 다른 설명). 그래서 자카드
+    집합 자체는 건드리지 않고, "Task N" 류의 좁은 컨텍스트 앵커만 별도로 뽑아 그 번호가
+    서로 다르면 즉시 다른 작업으로 판정한다."""
+    return _TASK_NUM_RE.findall((desc or "").lower())
+
+
 def _desc_tokens(desc):
-    """단어 토큰화 + stopword 제거. 숫자 토큰(1자리 포함)은 stopword·길이 필터를 건너뛰고
-    항상 보존한다 — 안 그러면 "Task 2"/"Task 3"처럼 정형 문구에서 유일하게 다른 부분이
-    한 자리 숫자뿐인 서로 다른 태스크가 boilerplate만 남아 자카드 1.0으로 오탐된다(실측,
-    2026-08-12 — 실험13이 남긴 잔여 오탐, production_failures.jsonl 실사용 확인)."""
+    """단어 토큰화 + stopword 제거. 1자리 토큰(숫자 포함)은 그대로 필터링한다 — 자카드
+    집합에 숫자를 항상 포함시키면 우연히 겹치는 숫자가 무관한 설명끼리도 유사도를
+    끌어올리는 새 오탐을 만든다(2026-08-12 실측). "Task N" 구분은 _task_numbers()가
+    맡는다."""
     words = re.findall(r"[a-z0-9가-힣]+", (desc or "").lower())
-    return {w for w in words if w.isdigit() or (w not in _DESC_STOPWORDS and len(w) > 1)}
+    return {w for w in words if w not in _DESC_STOPWORDS and len(w) > 1}
 
 
 def _similar_desc(a, b):
+    nums_a, nums_b = _task_numbers(a), _task_numbers(b)
+    if nums_a and nums_b and nums_a != nums_b:
+        return False  # 명시적 Task/Step/Round/Wave 번호가 다르면 무조건 다른 작업
     ta, tb = _desc_tokens(a), _desc_tokens(b)
     if not ta or not tb:
         return False

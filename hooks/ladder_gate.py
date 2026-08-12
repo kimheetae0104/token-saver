@@ -73,25 +73,40 @@ def _tier_of(model):
     return None
 
 
+def _text_from_content_blocks(content):
+    """content-block 값에서 첫 번째 유효한 text를 찾는다. content가 곧바로 문자열인
+    배선, 또는 리스트인데 앞쪽 블록엔 text가 없고 뒤쪽 블록에 있는 경우(여러 블록 중
+    첫 원소만 보면 놓침) 모두 스캔 — 2026-08-12 적대적 재검증에서 실제로 반박 성공한
+    케이스들."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and isinstance(item.get("text"), str):
+                return item["text"]
+    return None
+
+
 def _extract_recommended_tier(payload):
     """PostToolUse payload에서 suggest_tier 응답 텍스트를 찾아 추천 티어를 뽑는다.
     필드명이 문서와 실제 배선에서 다를 수 있어(grep_trim.py의 OUTPUT_FIELD_CANDIDATES와
-    동일 이유) 후보를 순서대로 시도. MCP 응답은 {"content":[{"type":"text","text":...}]}
-    형태일 수도, 필드 자체가 바로 [{"type":"text","text":...}] 리스트로 올 수도 있어(실측,
-    2026-08-11) 두 경로 모두 시도. 못 찾으면 None(그래도 consulted 자체는 기록됨 —
-    이 부가정보는 있으면 강화, 없어도 기본 게이트는 그대로 동작하는 fail-open 설계)."""
+    동일 이유) 후보를 순서대로 시도. MCP 응답 배선은 여러 형태로 드리프트할 수 있어(실측,
+    2026-08-11·2026-08-12) {"content":[...]}, 필드 자체가 [...] 리스트, content가 바로
+    문자열, "content" 래퍼 없이 단일 블록 dict({"type":"text","text":...})가 그대로 오는
+    경우까지 모두 시도. 못 찾으면 None(그래도 consulted 자체는 기록됨 — 이 부가정보는
+    있으면 강화, 없어도 기본 게이트는 그대로 동작하는 fail-open 설계)."""
     for field in _RESPONSE_FIELD_CANDIDATES:
         val = payload.get(field)
         text = None
         if isinstance(val, str):
             text = val
         elif isinstance(val, dict):
-            content = val.get("content")
-            if isinstance(content, list) and content and isinstance(content[0], dict):
-                text = content[0].get("text")
+            if isinstance(val.get("text"), str):
+                text = val["text"]
+            else:
+                text = _text_from_content_blocks(val.get("content"))
         elif isinstance(val, list):
-            if val and isinstance(val[0], dict):
-                text = val[0].get("text")
+            text = _text_from_content_blocks(val)
         if isinstance(text, str):
             m = _RECOMMEND_RE.match(text.strip())
             if m:

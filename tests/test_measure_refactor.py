@@ -601,6 +601,30 @@ def test_similar_desc_distinguishes_single_digit_task_numbers():
     )
 
 
+def test_similar_desc_does_not_inflate_on_coincidental_shared_digit():
+    """2026-08-12 적대적 재검증 실측: 숫자를 자카드 집합에 무조건 보존하는 첫 버전은
+    "Task N" 구분은 고쳤지만, 우연히 같은 한 자리 숫자로 끝나는 서로 무관한 설명까지
+    자카드를 0.7 문턱 위로 밀어올리는 새 오탐을 만들었다(alpha/beta 예시가 실제로
+    jaccard 0.667→0.700으로 넘어감을 재현 확인). task/step/round/wave 앵커가 없는
+    일반 숫자는 여전히 자카드 집합에서 제외돼야 한다."""
+    desc_a = "Update server config module timeout value alpha 5"
+    desc_b = "Update server config module timeout value beta gamma 5"
+    result = measure._similar_desc(desc_a, desc_b)
+    assert result is False, (
+        f"expected False — 우연히 겹치는 숫자 '5'만으로 무관한 설명이 유사 판정됨: "
+        f"'{desc_a}' vs '{desc_b}', got {result} "
+        f"(ta={measure._desc_tokens(desc_a)}, tb={measure._desc_tokens(desc_b)})"
+    )
+
+
+def test_similar_desc_still_distinguishes_multi_digit_task_numbers():
+    """회귀 방지: 여러 자리 Task 번호도 여전히 구분돼야 한다(이번 재설계로 tokens 집합이
+    아니라 _task_numbers() 앵커가 담당하게 바뀜)."""
+    desc_a = "Review Task 12 (spec + quality)"
+    desc_b = "Review Task 13 (spec + quality)"
+    assert measure._similar_desc(desc_a, desc_b) is False
+
+
 def _run_do_check(payload):
     import io
     import contextlib

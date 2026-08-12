@@ -199,6 +199,41 @@ def test_mark_consulted_extracts_tier_from_bare_list_shape():
         assert state["recommended_tier"] == "sonnet", state
 
 
+def test_mark_consulted_extracts_tier_from_multi_block_list_leading_non_text():
+    """리스트에 여러 블록이 있고 첫 블록엔 text가 없는 경우 — 2026-08-12 적대적 재검증에서
+    반박 성공한 케이스(당시 코드는 val[0]만 봐서 뒤쪽 블록의 유효한 text를 놓쳤다)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output=[{"type": "other"}, {"type": "text", "text": "추천: opus(effort=high) — ..."}])
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "opus", state
+
+
+def test_mark_consulted_extracts_tier_from_content_as_plain_string():
+    """content가 리스트가 아니라 문자열 그대로 오는 배선(2026-08-12 적대적 재검증)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output={"content": "추천: sonnet(effort=high) — ..."})
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "sonnet", state
+
+
+def test_mark_consulted_extracts_tier_from_bare_content_block_dict():
+    """"content" 래퍼 없이 단일 content-block dict({"type":"text","text":...})가 그대로
+    오는 배선(bare-list 케이스의 dict 버전, 2026-08-12 적대적 재검증)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir,
+              tool_output={"type": "text", "text": "추천: sonnet(effort=high) — ..."})
+        with open(_state_path(data_dir, "sess-1")) as f:
+            state = json.load(f)
+        assert state["recommended_tier"] == "sonnet", state
+
+
 def test_mismatched_tier_denies_once_then_allows():
     with tempfile.TemporaryDirectory() as data_dir:
         _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
