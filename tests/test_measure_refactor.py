@@ -577,6 +577,30 @@ def test_similar_desc_still_detects_true_escalations():
     )
 
 
+def test_similar_desc_distinguishes_single_digit_task_numbers():
+    """2026-08-12 실측: 실험13이 남긴 잔여 오탐 — 정형 문구에서 단 하나 다른 부분이
+    한 자리 숫자(Task 2 vs Task 3)뿐이면, _desc_tokens()가 len(w)>1 필터로 그 숫자를
+    stopword처럼 지워버려 남은 boilerplate 단어(spec/quality/scoped)만으로 자카드 1.0이
+    나온다 — 실사용에서 이 세션 자체의 'Review Task 1/2', 'Scoped re-review Task 3/5'가
+    바로 이 패턴으로 오탐 기록됨(라이브 production_failures.jsonl 확인)."""
+    desc_a = "Review Task 2 (spec + quality)"
+    desc_b = "Review Task 3 (spec + quality)"
+    result = measure._similar_desc(desc_a, desc_b)
+    assert result is False, (
+        f"expected False — 다른 Task 번호인데 숫자가 filtered 돼 동일 취급됨: "
+        f"'{desc_a}' vs '{desc_b}', got {result} "
+        f"(ta={measure._desc_tokens(desc_a)}, tb={measure._desc_tokens(desc_b)})"
+    )
+
+    desc_c = "Scoped re-review Task 3 fix round 1"
+    desc_d = "Scoped re-review Task 5 fix round 1"
+    result2 = measure._similar_desc(desc_c, desc_d)
+    assert result2 is False, (
+        f"expected False for '{desc_c}' vs '{desc_d}', got {result2} "
+        f"(tc={measure._desc_tokens(desc_c)}, td={measure._desc_tokens(desc_d)})"
+    )
+
+
 def _run_do_check(payload):
     import io
     import contextlib

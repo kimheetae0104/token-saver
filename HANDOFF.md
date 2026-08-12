@@ -709,9 +709,32 @@ grep/CLI로 될 일):
 
 18차가 "블록됨"으로 남긴 3항목은 여전히 데이터 누적 대기 — 액션 불가 그대로.
 
+## 22차 — production_failures.jsonl "정체" 오진 정정 + 잔여 오탐 버그 수정 (2026-08-12)
+로드맵 3위 완료. 결과가 예상과 달랐다 — **"142줄 정체"라는 전제 자체가 오진이었다**.
+18~20차가 확인한 건 저장소 안 고정 스냅샷(`experiments/production_failures.jsonl`,
+실험13용으로 2026-08-08에 얼린 샘플)이고, 실제 라이브 로그
+(`${CLAUDE_PLUGIN_DATA}/production_failures.jsonl`)는 08-09·08-11에도 계속 늘어
+148줄이었다(실측, dedup_key 대조로 새 8건 확인). 정체 없음 — 파이프라인은 살아있다.
+
+그 새 8건 중 escalation_pair를 까보니 실험13(`experiments/PROTOCOL.md`)이 이미 발견하고
+"후속 태스크로 분리"라며 남겨둔 오탐 클래스가 여전히 살아있었다: `_desc_tokens()`가
+`len(w)>1` 필터로 한 자리 숫자(Task 2 vs 3)를 stopword처럼 지워버려, "Review Task N
+(spec + quality)"류 정형 문구에서 유일한 차이(번호)가 사라지고 boilerplate만 남아 자카드
+1.0으로 오판 — 이번 세션 자체의 SDD 작업("Review Task 1/2", "Scoped re-review Task 3/5")도
+이 패턴으로 오탐 기록됐다(임계값 0.5→0.7 상향은 실험13의 다른 두 사례는 막았지만 이 잔여
+케이스는 못 막았음, 실측). 수정: 숫자 토큰은 길이·stopword 필터를 건너뛰고 항상 보존
+(~1줄). TDD로 회귀테스트 2건 추가(`tests/test_measure_refactor.py`). `pytest -q`:
+**217/217 PASS**(216+1). 라이브 프로덕션 데이터 파일 자체(레포 밖, git 비대상)는 건드리지
+않음 — 과거에 잘못 기록된 항목 소급 정리는 스코프 밖.
+
+파급: `many_agents` 재보정·`verify_fails.py` 재검증은 이 8건을 근거로 언블록하면 안 됨 —
+버그 수정 전 코드로 잡힌 오탐이 섞여 있어 신호가 아니라 노이즈였다. 앞으로 새로 쌓이는
+escalation_pair만 신뢰할 근거로 쓸 것.
+
 ## 재개 방법
 1. 이 폴더에서 새 세션 시작(→ `CLAUDE.md` 자동 로드로 규칙 복원).
 2. 이 `HANDOFF.md` + 필요 시 `experiments/PROTOCOL.md`만 읽으면 상태 복원(전체 대화 불필요).
 3. `python3 measure.py --all` 로 이전 세션 대비 효율 비교하며 시작.
-4. 다음 순번: **production_failures.jsonl 정체 원인 코드 리뷰**(design.md의 "Phase 2 결과"
-   절 3번 항목 — 142줄에서 성장 없음, 로깅 경로에 ladder_gate류 버그가 또 있는지 확인).
+4. 로드맵 4~7위는 design.md "Phase 2 결과" 절 참고 — 4위(`suggest_tier` batch_size 자동
+   추정)는 신중한 설계 필요(실험9류 함정 주의), 5~7위는 여전히 세션 누적 대기(액션 불가,
+   이번 22차로도 전제 안 바뀜 — 22차가 밝힌 8건은 오탐이 섞여 있어 근거로 못 씀).

@@ -699,8 +699,12 @@ def _delegation_overhead(main_path):
 
 
 def _desc_tokens(desc):
+    """단어 토큰화 + stopword 제거. 숫자 토큰(1자리 포함)은 stopword·길이 필터를 건너뛰고
+    항상 보존한다 — 안 그러면 "Task 2"/"Task 3"처럼 정형 문구에서 유일하게 다른 부분이
+    한 자리 숫자뿐인 서로 다른 태스크가 boilerplate만 남아 자카드 1.0으로 오탐된다(실측,
+    2026-08-12 — 실험13이 남긴 잔여 오탐, production_failures.jsonl 실사용 확인)."""
     words = re.findall(r"[a-z0-9가-힣]+", (desc or "").lower())
-    return {w for w in words if w not in _DESC_STOPWORDS and len(w) > 1}
+    return {w for w in words if w.isdigit() or (w not in _DESC_STOPWORDS and len(w) > 1)}
 
 
 def _similar_desc(a, b):
