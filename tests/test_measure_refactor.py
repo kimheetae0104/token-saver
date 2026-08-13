@@ -862,6 +862,54 @@ def test_ladder_gate_cost_comparison_counts_event_with_no_following_subagent():
                            "mismatched_cost": 0.0, "unmatched_events": 1}, result
 
 
+def test_ladder_gate_readers_ignore_pipeline_batch_flagged_events():
+    """ladder_gate_events/<session>.jsonl에는 ladder_gate_resolution과
+    pipeline_batch_flagged(2026-08-13 파이프라인 배치 가드) 두 이벤트 타입이 섞여
+    쓰인다 — 필터링 안 하면 resolutions 과다집계·cost_comparison 매칭이 어긋난다
+    (2026-08-13 최종검토에서 발견된 버그의 회귀 테스트)."""
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as plugin_data:
+        session = "fake-session"
+        main_path = os.path.join(d, f"{session}.jsonl")
+        with open(main_path, "w") as f:
+            f.write(FIXTURE)
+
+        events_dir = os.path.join(plugin_data, "ladder_gate_events")
+        os.makedirs(events_dir)
+        with open(os.path.join(events_dir, f"{session}.jsonl"), "w") as f:
+            f.write(json.dumps({"event": "pipeline_batch_flagged", "stage_signal": True,
+                                 "batch_signal": True, "acknowledged": False,
+                                 "ts": 1785887990.0}) + "\n")
+            f.write(json.dumps({"event": "pipeline_batch_flagged", "stage_signal": True,
+                                 "batch_signal": True, "acknowledged": True,
+                                 "ts": 1785887995.0}) + "\n")
+            f.write(json.dumps({"event": "ladder_gate_resolution", "recommended_tier": "haiku",
+                                 "requested_tier": "haiku", "matched": True,
+                                 "ts": 1785888000.0}) + "\n")
+
+        task1 = _write_subagent(
+            main_path, "task-1", "tool-1", "claude-haiku-4-5-20251001", "general-purpose",
+            input_tokens=1000, output_tokens=200,
+            ts_start="2026-08-05T00:00:03Z", ts_end="2026-08-05T00:00:05Z")
+
+        old_env = _set_plugin_data(plugin_data)
+        try:
+            summary = measure.ladder_gate_summary_for_session(session)
+            comparison = measure.ladder_gate_cost_comparison(main_path)
+        finally:
+            _restore_plugin_data(old_env)
+
+        assert summary["resolutions"] == 1, summary
+        assert summary["matched"] == 1, summary
+        assert summary["mismatched"] == 0, summary
+
+        expected_cost1, _ = measure.aggregate(measure.parse_session(task1))
+        assert comparison["matched_n"] == 1, comparison
+        assert comparison["matched_cost"] > 0, comparison
+        assert abs(comparison["matched_cost"] - expected_cost1["cost"]) < 1e-9, comparison
+        assert comparison["mismatched_n"] == 0, comparison
+        assert comparison["unmatched_events"] == 0, comparison
+
+
 def main():
     tests = [v for k, v in globals().items() if k.startswith("test_")]
     failed = 0

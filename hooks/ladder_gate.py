@@ -71,6 +71,12 @@ _GEN_RE = re.compile(r"(생성|만들|작성)")
 _JUDGE_RE = re.compile(r"(판정|판단|평가|채점|검증)")
 _MEASURE_RE = re.compile(r"(측정|계산|집계|비용)")
 _STAGE_RES = (_GEN_RE, _JUDGE_RE, _MEASURE_RE)
+# 2026-08-13 최종검토로 추가: 단계어 2개 이상 매치만으로는 CLAUDE.md가 권장하는
+# "독립 검증 서브에이전트" 위임 패턴(예: "리뷰하고 판정해서 보고서를 작성해줘")과
+# 오탐 충돌 — 그 패턴은 실제로는 단일 단계 작업이라 순서 신호가 없다. 명시적 순서
+# 마커가 있을 때만 진짜 다단계 파이프라인으로 본다.
+# docs/superpowers/specs/2026-08-13-pipeline-batch-guard-design.md 말미 amendment 참고.
+_SEQUENCE_RE = re.compile(r"(뒤|다음|이후|그리고\s?나서|→)")
 _BATCH_SIZE_RE = re.compile(r"(\d+)\s*(건|개|case|items?)", re.IGNORECASE)
 BATCH_SMALL_THRESHOLD = 20
 
@@ -78,7 +84,7 @@ BATCH_SMALL_THRESHOLD = 20
 def _has_pipeline_signal(prompt):
     if not isinstance(prompt, str):
         return False
-    return sum(1 for r in _STAGE_RES if r.search(prompt)) >= 2
+    return sum(1 for r in _STAGE_RES if r.search(prompt)) >= 2 and bool(_SEQUENCE_RE.search(prompt))
 
 
 def _has_small_batch_signal(prompt):

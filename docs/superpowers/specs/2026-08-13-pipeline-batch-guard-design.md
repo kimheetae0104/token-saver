@@ -111,3 +111,22 @@ deny 메시지:
   CLAUDE.md 기존 N<20 기준 재사용, 이 게이트 전용 실측치는 아직 없음).
 - 서브에이전트가 실제로 내부에서 Bash를 몇 번 호출했는지 사후 대조해 이 게이트의
   정밀도(오탐/누락률)를 실측 — `ladder_gate_events` 로그가 쌓인 뒤 가능.
+
+## Amendment (2026-08-13, 최종검토 반영)
+최종 브랜치 코드리뷰에서 "다단계 신호"(`_has_pipeline_signal`, 2개 이상 카테고리
+매치) 규칙이 CLAUDE.md 자신이 권장하는 "독립 검증 서브에이전트" 위임 패턴과
+오탐 충돌함을 발견했다 — 예: `"이 PR diff를 리뷰하고 문제를 판정해서 보고서를
+작성해줘"`는 생성/만들/작성 + 판정/판단/평가/채점/검증 두 카테고리에 매치되지만,
+실제로는 단일 단계 작업이지 다단계 파이프라인이 아니다.
+
+사용자 승인 하에 규칙을 강화: 카테고리 2개 이상 매치에 더해 **명시적 순서 마커**가
+프롬프트에 있어야만 다단계 신호로 판정한다.
+
+```python
+_SEQUENCE_RE = re.compile(r"(뒤|다음|이후|그리고\s?나서|→)")
+```
+
+`_has_pipeline_signal`은 이제 `(카테고리 2개 이상 매치) AND _SEQUENCE_RE.search(prompt)`
+둘 다 참일 때만 True. 회귀 테스트: `tests/test_ladder_gate.py`의
+`test_verification_delegation_pattern_allows`,
+`test_multi_category_without_sequence_marker_allows`.

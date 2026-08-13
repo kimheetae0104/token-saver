@@ -397,7 +397,7 @@ def test_small_explicit_batch_denies():
     with tempfile.TemporaryDirectory() as data_dir:
         _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
         _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
-        prompt = "15건을 생성하고 판정해줘"
+        prompt = "15건을 생성하고 판정한 뒤 보고해줘"
         resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
         assert resp is not None
 
@@ -450,6 +450,26 @@ def test_pipeline_batch_flag_logs_event_each_time():
                    if e["event"] == "pipeline_batch_flagged"]
         assert len(events2) == 2, events2
         assert events2[1]["acknowledged"] is True, events2
+
+
+def test_verification_delegation_pattern_allows():
+    """CLAUDE.md가 권장하는 독립 검증 서브에이전트 패턴 — 단계어는 2개 매치되지만
+    순서 신호가 없는 단일 작업이므로 허용돼야 한다(2026-08-13 최종검토 반영)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "이 PR diff를 리뷰하고 문제를 판정해서 보고서를 작성해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is None
+
+
+def test_multi_category_without_sequence_marker_allows():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "docs 전체를 훑어서 깨진 링크를 찾아 목록을 작성하고 검증해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is None
 
 
 def test_no_prompt_field_skips_pipeline_batch_check():

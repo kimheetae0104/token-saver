@@ -349,9 +349,15 @@ def ladder_gate_log_dir():
         tempfile.gettempdir(), "token-saver-ladder-gate-events")
 
 
-def _read_ladder_gate_events(session_id):
+def _read_ladder_gate_events(session_id, event=None):
     """ladder_gate.py가 기록한 events jsonl을 원본 그대로 파싱(순서는 파일에 쓰인 그대로 —
-    정렬은 호출부 책임). 로그 없으면 빈 리스트(정상)."""
+    정렬은 호출부 책임). 로그 없으면 빈 리스트(정상).
+
+    같은 파일에 이벤트 타입이 둘 이상 섞여 있다(ladder_gate_resolution·
+    pipeline_batch_flagged, 2026-08-13 파이프라인 배치 가드 추가로 늘어남) —
+    event를 넘기면 "event" 필드가 그 값과 일치하는 레코드만 반환한다. 호출부가
+    이 필터를 빠뜨리면 서로 다른 이벤트 타입이 섞여 카운트가 오염된다(2026-08-13
+    최종검토에서 발견된 버그: resolutions 과다집계, cost_comparison 매칭 어긋남)."""
     path = os.path.join(ladder_gate_log_dir(), f"{session_id or ''}.jsonl")
     events = []
     if not session_id or not os.path.isfile(path):
@@ -362,9 +368,12 @@ def _read_ladder_gate_events(session_id):
             if not line:
                 continue
             try:
-                events.append(json.loads(line))
+                rec = json.loads(line)
             except Exception:
                 continue
+            if event is not None and rec.get("event") != event:
+                continue
+            events.append(rec)
     return events
 
 
@@ -382,7 +391,7 @@ def ladder_gate_summary_for_session(session_id):
     "무모한 이탈 건수"로 해석하면 과잉해석 — 그냥 "추천과 실제가 갈린 총 횟수"로 읽을 것."""
     resolutions = matched = mismatched = 0
     tiers = {}
-    for rec in _read_ladder_gate_events(session_id):
+    for rec in _read_ladder_gate_events(session_id, event="ladder_gate_resolution"):
         resolutions += 1
         tier = rec.get("recommended_tier")
         if tier:
@@ -420,7 +429,8 @@ def ladder_gate_cost_comparison(main_path):
     세고 비용 합산에서 제외한다 — 없는 값을 0으로 지어내지 않는다. 로그나 서브에이전트가
     없으면 전부 0(정상)."""
     session_id = session_id_from_path(main_path)
-    events = sorted(_read_ladder_gate_events(session_id), key=lambda e: e.get("ts") or 0)
+    events = sorted(_read_ladder_gate_events(session_id, event="ladder_gate_resolution"),
+                     key=lambda e: e.get("ts") or 0)
     records = []
     for r in _subagent_records(main_path):
         epoch = _iso_to_epoch(r["start_ts"]) if r.get("start_ts") else None
