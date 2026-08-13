@@ -189,6 +189,24 @@ flowchart TD
   zero — they're counted separately). Since the log has no exact tool_use_id link, the
   match is a timestamp approximation, not a guaranteed 1:1 — evidence and tests in
   `tests/test_measure_refactor.py` (`test_ladder_gate_cost_comparison_*`).
+- **Blocks small-batch multi-stage pipeline self-delegation** (`ladder_gate.py`,
+  PreToolUse, matcher: `Agent`, 2026-08-13)
+  Enforces CLAUDE.md's "don't hand a whole generate→judge→measure pipeline to a single
+  subagent" rule as deterministic code instead of a prompt-remembered policy. If the
+  delegation prompt text matches 2+ of 3 stage categories (generate/judge/measure) AND
+  contains an explicit sequencing marker (Korean 뒤/다음/이후/그리고나서/→), it's flagged
+  as a "pipeline signal"; if the batch size is under 20 or unspecified (Experiment 17:
+  smaller batches let delegation overhead flip the savings into a loss, up to 3.495x),
+  that `Agent` call is blocked once — retrying the same prompt passes (can't force a
+  rewrite, but forces a conscious re-check, same design as the ladder consult and the
+  4-slot gate). The sequencing-marker requirement was added after final review found the
+  bare 2-category match false-positived on legitimate single-stage delegation patterns
+  CLAUDE.md itself recommends (e.g. "review this PR diff, judge the issues, and write a
+  report"). Evidence: Experiment 10 (overhead cuts measured savings from 74.1% to 11.5%),
+  Experiment 17 (N<20 batches cost 3.495x baseline). Design doc:
+  `docs/superpowers/specs/2026-08-13-pipeline-batch-guard-design.md`. **Zero real-usage
+  validation so far** (unit-tested only) — unlike the 4-slot gate (round 26, 9 measured
+  trips), its false-positive/false-negative rate in the wild is unmeasured.
 - **Blocks redundant `token_saver_check` calls** (`check_gate.py`, PreToolUse,
   matcher: `token_saver_check`, 2026-08-11)
   In environments where hooks fire normally (CLI/IDE, macOS Desktop), the `⟢`
