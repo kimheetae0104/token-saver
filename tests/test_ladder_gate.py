@@ -359,6 +359,108 @@ def test_no_recommended_tier_skips_resolution_logging():
         assert _read_events(data_dir, "sess-1") == []
 
 
+def test_pipeline_signal_with_small_batch_denies_once_then_allows():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "각 항목을 생성하고 판정한 뒤 비용을 측정해서 보고해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is not None
+        reason = resp["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "다단계 파이프라인" in reason
+        assert "3.495배" in reason
+        # 재시도(2번째 호출)는 통과 — 강제 변경이 아니라 1회 확인
+        resp2 = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp2 is None
+
+
+def test_pipeline_signal_with_large_batch_allows_immediately():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "30건을 생성하고 판정한 뒤 측정해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is None
+
+
+def test_single_stage_category_allows():
+    """단계어가 1개 카테고리만 매치되면(다단계 아님) 배치 크기와 무관하게 허용."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "이 버그를 판정해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is None
+
+
+def test_small_explicit_batch_denies():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "15건을 생성하고 판정해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is not None
+
+
+def test_pipeline_batch_kill_switch_allows():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "생성하고 판정한 뒤 측정해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt},
+                     disable=True)
+        assert resp is None
+
+
+def test_pipeline_batch_config_disabled_allows():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _write_config(data_dir, {"disabled": True})
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        prompt = "생성하고 판정한 뒤 측정해줘"
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is None
+
+
+def test_reset_clears_pipeline_batch_acknowledged():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "생성하고 판정한 뒤 측정해줘"
+        _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})  # 최초 deny
+        # 다음 턴: --reset이 다시 돌면 acknowledged도 초기화되어야 함
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})
+        assert resp is not None  # 리셋됐으니 다시 최초 deny
+
+
+def test_pipeline_batch_flag_logs_event_each_time():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "생성하고 판정한 뒤 측정해줘"
+        _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})  # deny
+        events = [e for e in _read_events(data_dir, "sess-1")
+                  if e["event"] == "pipeline_batch_flagged"]
+        assert len(events) == 1, events
+        assert events[0]["acknowledged"] is False, events
+
+        _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt})  # 재시도, allow
+        events2 = [e for e in _read_events(data_dir, "sess-1")
+                   if e["event"] == "pipeline_batch_flagged"]
+        assert len(events2) == 2, events2
+        assert events2[1]["acknowledged"] is True, events2
+
+
+def test_no_prompt_field_skips_pipeline_batch_check():
+    """tool_input에 prompt가 아예 없으면(비정상 배선) 예외 없이 그냥 통과."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        resp = _call(session_id="sess-1", data_dir=data_dir, tool_input={})
+        assert resp is None
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

@@ -64,6 +64,36 @@ _TIERS = ("opus", "sonnet", "haiku", "fable")
 _RECOMMEND_RE = re.compile(r"^추천:\s*([a-z]+)", re.IGNORECASE)
 _RESPONSE_FIELD_CANDIDATES = ("tool_output", "tool_response", "output")
 
+# 다단계 파이프라인 소배치 통위임 탐지(실험10·17 실측 반례) — 서로 다른 단계 카테고리
+# 2개 이상 + 소배치(20건 미만 또는 불명)면 "서브에이전트 하나에 여러 단계를 한 번에
+# 시키는" 패턴으로 본다. docs/superpowers/specs/2026-08-13-pipeline-batch-guard-design.md
+_GEN_RE = re.compile(r"(생성|만들|작성)")
+_JUDGE_RE = re.compile(r"(판정|판단|평가|채점|검증)")
+_MEASURE_RE = re.compile(r"(측정|계산|집계|비용)")
+_STAGE_RES = (_GEN_RE, _JUDGE_RE, _MEASURE_RE)
+_BATCH_SIZE_RE = re.compile(r"(\d+)\s*(건|개|case|items?)", re.IGNORECASE)
+BATCH_SMALL_THRESHOLD = 20
+
+
+def _has_pipeline_signal(prompt):
+    if not isinstance(prompt, str):
+        return False
+    return sum(1 for r in _STAGE_RES if r.search(prompt)) >= 2
+
+
+def _has_small_batch_signal(prompt):
+    """배치 크기를 못 찾으면 소배치로 간주(실험17 반례를 놓치지 않는 쪽으로 보수적
+    기본값 — 브레인스토밍에서 합의)."""
+    if not isinstance(prompt, str):
+        return True
+    m = _BATCH_SIZE_RE.search(prompt)
+    if not m:
+        return True
+    try:
+        return int(m.group(1)) < BATCH_SMALL_THRESHOLD
+    except ValueError:
+        return True
+
 
 def _tier_of(model):
     m = (model or "").lower()
@@ -185,6 +215,21 @@ def log_resolution(session_id, recommended, requested, matched):
         pass
 
 
+def log_pipeline_batch_flagged(session_id, stage_signal, batch_signal, acknowledged):
+    try:
+        path = os.path.join(events_dir(), f"{session_id}.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps({
+                "event": "pipeline_batch_flagged",
+                "stage_signal": stage_signal,
+                "batch_signal": batch_signal,
+                "acknowledged": acknowledged,
+                "ts": time.time(),
+            }) + "\n")
+    except Exception:
+        pass
+
+
 def allow():
     sys.exit(0)
 
@@ -223,7 +268,7 @@ def main():
         return allow()
 
     if "--reset" in sys.argv:
-        write_state(session_id, {"consulted": False})
+        write_state(session_id, {"consulted": False, "pipeline_batch_acknowledged": False})
         return allow()
 
     if "--mark-consulted" in sys.argv:
@@ -251,6 +296,24 @@ def main():
             f"방금 추천은 {recommended}였는데 model={requested}로 위임하려 합니다 — "
             f"의도적이면 그대로 다시 시도하세요(통과합니다), 아니면 model을 {recommended}로 바꾸세요."
         )
+
+    prompt = (payload.get("tool_input") or {}).get("prompt")
+    stage_signal = _has_pipeline_signal(prompt)
+    batch_signal = _has_small_batch_signal(prompt)
+    if stage_signal and batch_signal:
+        already_acknowledged = bool(state.get("pipeline_batch_acknowledged"))
+        log_pipeline_batch_flagged(session_id, stage_signal, batch_signal, already_acknowledged)
+        if not already_acknowledged:
+            state["pipeline_batch_acknowledged"] = True
+            write_state(session_id, state)
+            return deny(
+                "다단계 파이프라인(생성→판정→측정 등)을 서브에이전트 하나에 통위임하는 "
+                "패턴으로 보이고 배치가 작아 보입니다(20건 미만 또는 배치 크기 불명) — "
+                "실험10·17 실측상 오버헤드가 절감분을 상쇄하거나 역전(최대 3.495배)합니다. "
+                "각 단계를 병렬 Agent 여러 콜로 쪼개거나, 배치가 20건 이상이면 그대로 "
+                "다시 시도하세요(통과합니다)."
+            )
+
     if recommended:
         log_resolution(session_id, recommended, requested,
                         matched=(recommended == requested) if requested else None)
