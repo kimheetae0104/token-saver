@@ -80,6 +80,12 @@ cost = input×b + cc_5m×b×1.25 + cc_1h×b×2 + cache_read×b×0.1 + output×b�
 - 주관 품질 심판: **길이통제 win-rate(AlpacaEval 2.0 LC)** + pairwise + 순서 랜덤화 + swap augmentation +
   자기모델 심판 금지(교차/앙상블) + 인간 100~300건 κ>0.6 보정. (순진한 judge는 긴 답 선호 → 우리 주제 배신)
 
+**공식 채택(2026-08-13)**: "이 세션이 실제로 이득이었는가"의 표준 지표는 `measure.py
+--check`/`--statusline`이 내는 **캐시절감 $**와 **효율점수**다(둘 다 라이브 층, 새 로직
+아님 — 이미 계산되던 값을 공식 지표로 선언). 구독 주간/5시간 사용량 게이지는 작업량과
+효율이 섞인 값이라 이 목적에 쓰지 않는다 — 작업량이 많으면 효율이 좋아도 게이지는 높게
+나올 수 있다.
+
 근거: MT-Bench(2306.05685), AlpacaEval-LC(2404.04475), OckBench, Token Complexity(2503.01141).
 
 ## 6. 검증 루프 (rework 방지 = 품질×비용 win-win)
