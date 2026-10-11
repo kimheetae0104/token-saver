@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 같은 브랜치에 새 push가 오면 이전 실행은 취소한다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 잡 이름 lint·test는 main 룰셋("main 보호")의 필수 체크 이름과 같아야 한다.
+# 이름을 바꾸면 룰셋이 영원히 체크를 기다려 main에 합칠 수 없게 된다.
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: pip install ruff==0.12.0
+      # 문법 오류·정의 안 된 이름만 본다. experiments/는 일부러 틀린 실험 파일이 있어 뺀다.
+      # --exclude는 ruff 기본 제외 목록(.git, .venv 등)을 통째로 바꾸므로 --extend-exclude를 쓴다.
+      - run: ruff check --select E9,F63,F7,F82 --extend-exclude experiments .
+      # 문서가 인용하는 "실험N"이 experiments/PROTOCOL.md에 실존하는지(저장소 자체 검사기).
+      - run: python check_citations.py
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: pip install pytest==8.3.5
+      - run: python -m pytest -q tests/
