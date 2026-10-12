@@ -22,11 +22,21 @@ def _call(prompt):
     return json.loads(raw)["systemMessage"]
 
 
-def _call_raw(prompt):
+def _call_raw(prompt, entrypoint="cli"):
+    env = dict(os.environ, CLAUDE_CODE_ENTRYPOINT=entrypoint)
     proc = subprocess.run([sys.executable, HOOK], input=json.dumps({"prompt": prompt}),
-                          capture_output=True, text=True, timeout=10)
+                          capture_output=True, text=True, env=env, timeout=10)
     assert proc.returncode == 0, f"hook exited {proc.returncode}, stderr={proc.stderr!r}"
     return proc.stdout.strip()
+
+
+def test_noninteractive_entrypoint_is_silent():
+    """예약 실행(sdk-cli)·Agent SDK(sdk-py)에서는 받을 사람이 없으니 코칭하지 않는다(실험24)."""
+    long_prompt = "그리고 또한 그런데 근데 그래서 " + "가" * 400
+    assert _call_raw(long_prompt, entrypoint="cli")
+    assert _call_raw(long_prompt, entrypoint="claude-desktop")
+    assert _call_raw(long_prompt, entrypoint="sdk-cli") == ""
+    assert _call_raw(long_prompt, entrypoint="sdk-py") == ""
 
 
 def test_clean_specific_request_stays_silent():

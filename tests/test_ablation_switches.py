@@ -22,6 +22,7 @@ HABIT_PROMPT = "그리고 또한 그런데 근데 그래서 이거 봐줘"
 def _run(cmd, payload, data_dir, env_extra=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith("TOKEN_SAVER_DISABLE_")}
     env["CLAUDE_PLUGIN_DATA"] = data_dir
+    env["CLAUDE_CODE_ENTRYPOINT"] = "cli"  # sdk-*면 habit_coaching이 꺼지므로 대화형으로 고정
     env.update(env_extra or {})
     proc = subprocess.run(cmd, input=json.dumps(payload), capture_output=True, text=True,
                           env=env, timeout=30)

@@ -36,8 +36,16 @@ def is_disabled():
         return False
 
 
+def is_noninteractive():
+    """예약 실행·SDK 호출(`claude -p`, Agent SDK)처럼 코칭을 받을 사람이 없는 실행인가.
+    Claude Code가 자기 프로세스에 CLAUDE_CODE_ENTRYPOINT를 넣고 훅이 이를 물려받는다 —
+    빈 환경에서 `claude -p`를 돌리면 훅이 "sdk-cli"를 받는 것을 2026-10-12 실측. 자동 실행
+    프롬프트의 99.1%에서 이 훅이 발화하고 있었다(experiments/PROTOCOL.md 실험24)."""
+    return os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk-")
+
+
 def main():
-    if is_disabled():
+    if is_disabled() or is_noninteractive():
         return
     try:
         payload = json.load(sys.stdin)
