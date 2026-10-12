@@ -193,7 +193,8 @@ flowchart TD
   자체가 판정 기준.
 - **DIY 설정** (`config_store.py` + MCP `token_saver_config_*`)
   위 훅들의 임계값·kill switch를 훅 재배포 없이 조회·변경. env kill switch
-  (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선.
+  (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선. 매 턴 주입 부품(`intent_gate`·`habit_coaching`·
+  `measure_check`)도 끌 수 있다(부품별 끄기 실험용, 기본은 켬).
 
 ### 측정 · 라우팅
 

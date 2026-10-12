@@ -11,10 +11,34 @@ check_line()과 같은 문제, HANDOFF.md 10차 근본 설계 오류). 즉 이 �
 직접 렌더링)로 전환해 실제로 사용자에게 보이게 한다.
 """
 import json
+import os
 import re
 import sys
+import tempfile
+
+
+def _config_path():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+
+
+def is_disabled():
+    """킬스위치 env TOKEN_SAVER_DISABLE_HABIT_COACHING=1 또는 config.json의 habit_coaching.disabled. 읽기 실패·잘못된 형식은
+    켜진 것으로 본다(fail-open, 다른 훅과 같은 관례)."""
+    if os.environ.get("TOKEN_SAVER_DISABLE_HABIT_COACHING") == "1":
+        return True
+    try:
+        with open(_config_path(), "r") as f:
+            cfg = json.load(f).get("habit_coaching", {})
+        return isinstance(cfg, dict) and cfg.get("disabled") is True
+    except Exception:
+        return False
+
 
 def main():
+    if is_disabled():
+        return
     try:
         payload = json.load(sys.stdin)
     except Exception:
