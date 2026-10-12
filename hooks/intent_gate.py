@@ -33,6 +33,25 @@ SHORT_INTENT_MAX = 3  # 이하 단어수면 대상이 이전 대화에 암묵적
                       # 실제로 AskUserQuestion 되묻기가 필요했던 케이스)
 
 
+def _config_path():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+
+
+def is_disabled():
+    """킬스위치 env TOKEN_SAVER_DISABLE_INTENT_GATE=1 또는 config.json의 intent_gate.disabled. 읽기 실패·잘못된 형식은
+    켜진 것으로 본다(fail-open, 다른 훅과 같은 관례)."""
+    if os.environ.get("TOKEN_SAVER_DISABLE_INTENT_GATE") == "1":
+        return True
+    try:
+        with open(_config_path(), "r") as f:
+            cfg = json.load(f).get("intent_gate", {})
+        return isinstance(cfg, dict) and cfg.get("disabled") is True
+    except Exception:
+        return False
+
+
 def state_dir():
     data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
     d = os.path.join(data_dir, "prompt_gate") if data_dir else os.path.join(
@@ -73,6 +92,10 @@ def main():
     except Exception:
         return
     session_id = payload.get("session_id")
+    if is_disabled():
+        # 꺼져 있어도 flag는 False로 덮어쓴다 — 안 쓰면 이전 턴 상태가 남아 prompt_gate가 막는다.
+        write_flag_state(session_id, False)
+        return
     prompt = payload.get("prompt")
     if not isinstance(prompt, str):
         write_flag_state(session_id, False)

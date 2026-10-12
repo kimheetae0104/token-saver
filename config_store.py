@@ -27,6 +27,11 @@ DEFAULTS = {
     "prompt_gate": {"disabled": False},
     "ladder_gate": {"disabled": False},
     "check_gate": {"disabled": False},
+    # 2026-10-12: 매 턴 컨텍스트에 글을 넣는 UserPromptSubmit 부품 셋 — 부품별 끄기 실험
+    # (docs/superpowers/specs/2026-10-12-harness-ablation-design.md)용 스위치.
+    "intent_gate": {"disabled": False},
+    "habit_coaching": {"disabled": False},
+    "measure_check": {"disabled": False},
 }
 _TYPES = {
     "disabled": bool,

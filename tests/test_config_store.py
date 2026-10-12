@@ -132,7 +132,8 @@ def test_get_all_covers_all_hooks():
         all_cfg = config_store.get_all()
         check("get_all_keys",
               set(all_cfg) == {"read_guard", "grep_trim", "bash_trim", "prompt_gate",
-                               "ladder_gate", "check_gate"},
+                               "ladder_gate", "check_gate", "intent_gate",
+                               "habit_coaching", "measure_check"},
               all_cfg)
     finally:
         d.cleanup()

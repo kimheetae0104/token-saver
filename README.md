@@ -145,6 +145,7 @@ flowchart TD
   연결어 과다·과거 회고+재확인 결합·방향전환·긴 배경설명 같은 채팅 습관 패턴을 감지해
   한 줄 피드백. `systemMessage` 필드로 사용자 화면 노출을 시도했으나 뜨지 않는 것으로
   실측 확인됨([알려진 제한사항](#알려진-제한사항) 참고) — 현재는 어시스턴트 컨텍스트에만 도달.
+  예약 실행·SDK 호출(`CLAUDE_CODE_ENTRYPOINT`가 `sdk-*`)에서는 받을 사람이 없어 발화하지 않는다(실험24).
 - **사다리 컨설트 강제** (`ladder_gate.py`, PreToolUse matcher: `Agent`)
   서브에이전트 위임 전에 `token_saver_suggest_tier`를 먼저 호출했는지 강제한다 —
   안 했으면 그 Agent 호출을 막고 먼저 호출하라고 안내, 한 번 확인되면 그 턴 내내
@@ -193,7 +194,8 @@ flowchart TD
   자체가 판정 기준.
 - **DIY 설정** (`config_store.py` + MCP `token_saver_config_*`)
   위 훅들의 임계값·kill switch를 훅 재배포 없이 조회·변경. env kill switch
-  (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선.
+  (`TOKEN_SAVER_DISABLE_*`)가 항상 최우선. 매 턴 주입 부품(`intent_gate`·`habit_coaching`·
+  `measure_check`)도 끌 수 있다(부품별 끄기 실험용, 기본은 켬).
 
 ### 측정 · 라우팅
 

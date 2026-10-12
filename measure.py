@@ -1078,6 +1078,23 @@ def check_line(path):
     return " ".join(msgs)
 
 
+def check_disabled():
+    """--check(매 턴 ⟢ 효율 줄 주입) 킬스위치: env TOKEN_SAVER_DISABLE_MEASURE_CHECK=1 또는
+    config.json의 measure_check.disabled(2026-10-12, 부품별 끄기 실험용). --statusline과
+    MCP token_saver_check는 건드리지 않는다. 읽기 실패는 켜진 것으로 본다(fail-open)."""
+    if os.environ.get("TOKEN_SAVER_DISABLE_MEASURE_CHECK") == "1":
+        return True
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    path = os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+    try:
+        with open(path, "r") as f:
+            cfg = json.load(f).get("measure_check", {})
+        return isinstance(cfg, dict) and cfg.get("disabled") is True
+    except Exception:
+        return False
+
+
 def do_check():
     """UserPromptSubmit hook용: stdin JSON -> Claude 컨텍스트 주입(hookSpecificOutput.
     additionalContext, 기존 plain-stdout과 동일 효과) + 경고가 있으면 top-level
@@ -1176,6 +1193,8 @@ def main():
     if args.statusline:
         return do_statusline()
     if args.check:
+        if check_disabled():
+            return
         return do_check()
     if args.capture_failures:
         return do_capture_failures(args.session or latest_session(), data_dir=args.data_dir)

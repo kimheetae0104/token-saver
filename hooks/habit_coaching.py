@@ -11,10 +11,42 @@ check_line()과 같은 문제, HANDOFF.md 10차 근본 설계 오류). 즉 이 �
 직접 렌더링)로 전환해 실제로 사용자에게 보이게 한다.
 """
 import json
+import os
 import re
 import sys
+import tempfile
+
+
+def _config_path():
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.path.join(data_dir, "config.json") if data_dir else os.path.join(
+        tempfile.gettempdir(), "token-saver-config.json")
+
+
+def is_disabled():
+    """킬스위치 env TOKEN_SAVER_DISABLE_HABIT_COACHING=1 또는 config.json의 habit_coaching.disabled. 읽기 실패·잘못된 형식은
+    켜진 것으로 본다(fail-open, 다른 훅과 같은 관례)."""
+    if os.environ.get("TOKEN_SAVER_DISABLE_HABIT_COACHING") == "1":
+        return True
+    try:
+        with open(_config_path(), "r") as f:
+            cfg = json.load(f).get("habit_coaching", {})
+        return isinstance(cfg, dict) and cfg.get("disabled") is True
+    except Exception:
+        return False
+
+
+def is_noninteractive():
+    """예약 실행·SDK 호출(`claude -p`, Agent SDK)처럼 코칭을 받을 사람이 없는 실행인가.
+    Claude Code가 자기 프로세스에 CLAUDE_CODE_ENTRYPOINT를 넣고 훅이 이를 물려받는다 —
+    빈 환경에서 `claude -p`를 돌리면 훅이 "sdk-cli"를 받는 것을 2026-10-12 실측. 자동 실행
+    프롬프트의 99.1%에서 이 훅이 발화하고 있었다(experiments/PROTOCOL.md 실험24)."""
+    return os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk-")
+
 
 def main():
+    if is_disabled() or is_noninteractive():
+        return
     try:
         payload = json.load(sys.stdin)
     except Exception:
