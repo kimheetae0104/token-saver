@@ -261,6 +261,53 @@ def test_env_kill_switch_wins_over_config_enabled():
         assert r2 is None
 
 
+def _confirm(tool_input, session_id="sess-1", data_dir=None):
+    payload = {"session_id": session_id, "hook_event_name": "PostToolUse",
+               "tool_name": "Read", "tool_input": tool_input}
+    env = dict(os.environ)
+    if data_dir:
+        env["CLAUDE_PLUGIN_DATA"] = data_dir
+    proc = subprocess.run([sys.executable, HOOK, "--confirm"], input=json.dumps(payload),
+                          capture_output=True, text=True, env=env, timeout=10)
+    assert proc.returncode == 0, f"confirm exited {proc.returncode}, stderr={proc.stderr!r}"
+    assert proc.stdout.strip() == "", "PostToolUse --confirm은 아무것도 출력하지 않아야 함"
+
+
+def _age_pending_records(data_dir, seconds):
+    """state 파일의 pending 기록 ts를 과거로 돌린다(PENDING_WINDOW_SEC 경과 흉내)."""
+    d = os.path.join(data_dir, "read_history")
+    for name in os.listdir(d):
+        if not name.endswith(".jsonl"):
+            continue
+        path = os.path.join(d, name)
+        rows = [json.loads(line) for line in open(path) if line.strip()]
+        for r in rows:
+            if r.get("pending"):
+                r["ts"] -= seconds
+        with open(path, "w") as f:
+            f.write("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_read_blocked_by_other_hook_is_not_remembered():
+    """실험25 시험 실행의 교착: 다른 PreToolUse 훅이 막아 실제로 안 읽힌 Read(PostToolUse
+    --confirm 없음)는 PENDING_WINDOW_SEC가 지나면 기록에서 빠져 다시 읽을 수 있어야 한다."""
+    with tempfile.TemporaryDirectory() as d:
+        f = _make_file(d, "a.py", 10)
+        assert _call({"file_path": f}, data_dir=d) is None
+        _age_pending_records(d, 60)
+        assert _call({"file_path": f}, data_dir=d) is None, "막힌 Read가 읽은 것으로 남아 재독이 막힘"
+
+
+def test_confirmed_read_still_blocks_reread_after_window():
+    with tempfile.TemporaryDirectory() as d:
+        f = _make_file(d, "a.py", 10)
+        assert _call({"file_path": f}, data_dir=d) is None
+        _confirm({"file_path": f}, data_dir=d)
+        _age_pending_records(d, 60)
+        resp = _call({"file_path": f}, data_dir=d)
+        assert resp is not None and resp["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
 def test_concurrent_identical_reads_deny_all_but_one():
     """실측된 레이스: 같은 세션에서 동일 (file_path, offset, limit) Read 여러 개가 병렬로
     들어오면(CLAUDE.md가 권장하는 패턴 그 자체), 락 없는 read-decide-append는 TOCTOU로

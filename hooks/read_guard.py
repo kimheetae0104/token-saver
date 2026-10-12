@@ -38,6 +38,14 @@ import tempfile
 import time
 
 LARGE_FILE_LINES = 500
+# 2026-10-12: PreToolUse에서 남긴 기록은 "읽는 중"(pending)이고, PostToolUse(--confirm)가
+# 실제로 읽힌 뒤 확정한다. 다른 PreToolUse 훅(prompt_gate 등)이 그 Read를 막으면 PostToolUse가
+# 안 오므로 확정되지 않는다. 이전엔 PreToolUse에서 바로 "읽음"으로 남겨서, 막힌 Read가 읽은
+# 것으로 기록 → 이후 Read는 이 훅이 막고 Edit은 Claude Code가 "아직 안 읽음"으로 막는 교착이
+# 실측됐다(experiments/PROTOCOL.md 실험25 시험 실행). pending 기록은 이 시간 동안만 센다 —
+# 한 메시지 안 병렬 동일 Read(밀리초 단위로 들어옴)를 막는 용도로는 충분하고, 막힌 뒤 모델이
+# 다시 Read할 때(새 응답 생성이 필요해 보통 이보다 김)에는 이미 지나 있다.
+PENDING_WINDOW_SEC = 3.0
 STATE_MAX_AGE_SEC = 24 * 60 * 60
 
 
@@ -250,6 +258,10 @@ def main():
         # 최신 레코드 기준으로 두 맵 구성 (같은 세션 내 append-only 로그, 뒤에 온 게 최신)
         exact_map = {}   # (file_path, offset, limit) -> mtime
         file_map = {}    # file_path -> mtime (그 파일에 대한 가장 최근 Read)
+        now = time.time()
+        records = [r for r in records
+                   if not (isinstance(r, dict) and r.get("pending")
+                           and now - r.get("ts", 0) > PENDING_WINDOW_SEC)]
         for r in records:
             try:
                 key = (r["file_path"], r.get("offset"), r.get("limit"))
@@ -320,10 +332,10 @@ def main():
                     "offset/limit로 필요한 범위만 지정하세요."
                 )
 
-        # 허용 -> 기록
+        # 허용 -> "읽는 중" 기록(PostToolUse --confirm이 확정, PENDING_WINDOW_SEC 참고)
         try:
             append_record(path, {"file_path": file_path, "offset": offset, "limit": limit,
-                                  "mtime": current_mtime})
+                                  "mtime": current_mtime, "pending": True, "ts": time.time()})
             _cleanup_old(state_dir())
         except Exception:
             pass
@@ -332,5 +344,35 @@ def main():
         release_lock(lock_path)
 
 
+def confirm():
+    """PostToolUse(matcher Read) — 실제로 읽힌 Read를 "읽음"으로 확정한다. fail-open."""
+    if os.environ.get("TOKEN_SAVER_DISABLE_GUARD") == "1" or load_config().get("disabled"):
+        return
+    try:
+        payload = json.load(sys.stdin)
+        if payload.get("tool_name") != "Read":
+            return
+        session_id = payload.get("session_id")
+        tool_input = payload.get("tool_input") or {}
+        file_path = tool_input.get("file_path")
+        if not session_id or not file_path:
+            return
+        mtime = os.path.getmtime(file_path)
+        path = state_path(session_id)
+    except Exception:
+        return
+    lock_path = acquire_lock(path)
+    try:
+        append_record(path, {"file_path": file_path, "offset": tool_input.get("offset"),
+                             "limit": tool_input.get("limit"), "mtime": mtime})
+    except Exception:
+        pass
+    finally:
+        release_lock(lock_path)
+
+
 if __name__ == "__main__":
-    main()
+    if "--confirm" in sys.argv[1:]:
+        confirm()
+    else:
+        main()
