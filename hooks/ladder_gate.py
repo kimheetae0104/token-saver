@@ -76,7 +76,12 @@ _STAGE_RES = (_GEN_RE, _JUDGE_RE, _MEASURE_RE)
 # 오탐 충돌 — 그 패턴은 실제로는 단일 단계 작업이라 순서 신호가 없다. 명시적 순서
 # 마커가 있을 때만 진짜 다단계 파이프라인으로 본다.
 # docs/superpowers/specs/2026-08-13-pipeline-batch-guard-design.md 말미 amendment 참고.
-_SEQUENCE_RE = re.compile(r"(뒤|다음|이후|그리고\s?나서|→)")
+# 2026-11-12: 화살표는 앞뒤 공백이 있을 때만 순서로 본다. "ai_ai.hee26→obesa.ai" 같은
+# 이름 바뀜 표기가 순서 신호로 잡혀 판정 전용 감사 위임이 막혔다(contents-agent 실측).
+_SEQUENCE_RE = re.compile(r"(뒤|다음|이후|그리고\s?나서|\s→\s)")
+# 판정만 내고 아무것도 만들지 않는 검사·리뷰 서브에이전트는 단계가 하나다. 프롬프트에
+# 검사 대상 설명(생성·측정 같은 단어)이 섞여도 통위임으로 보지 않는다.
+_REVIEW_AGENT_RE = re.compile(r"(audit|review|skeptic|verif|vetter|critic)", re.IGNORECASE)
 _BATCH_SIZE_RE = re.compile(r"(\d+)\s*(건|개|case|items?)", re.IGNORECASE)
 BATCH_SMALL_THRESHOLD = 20
 
@@ -304,7 +309,8 @@ def main():
         )
 
     prompt = (payload.get("tool_input") or {}).get("prompt")
-    stage_signal = _has_pipeline_signal(prompt)
+    subagent_type = (payload.get("tool_input") or {}).get("subagent_type") or ""
+    stage_signal = _has_pipeline_signal(prompt) and not _REVIEW_AGENT_RE.search(subagent_type)
     batch_signal = _has_small_batch_signal(prompt)
     if stage_signal and batch_signal:
         already_acknowledged = bool(state.get("pipeline_batch_acknowledged"))

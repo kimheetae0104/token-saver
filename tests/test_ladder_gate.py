@@ -500,3 +500,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def test_review_subagent_type_skips_pipeline_check():
+    """판정 전용 감사 에이전트는 검사 대상 설명에 단계어가 섞여도 막지 않는다(2026-11-12 오탐)."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "각 항목을 생성하고 판정한 뒤 비용을 측정했는지 감사해줘. 판정만 내고 코드는 고치지 마세요"
+        for kind in ("change-auditor", "skeptic", "ai-output-reviewer"):
+            assert _call(session_id="sess-1", data_dir=data_dir,
+                         tool_input={"prompt": prompt, "subagent_type": kind}) is None
+
+
+def test_arrow_inside_identifier_is_not_sequence():
+    with tempfile.TemporaryDirectory() as data_dir:
+        _call(session_id="sess-1", mode="--reset", data_dir=data_dir)
+        _call(session_id="sess-1", mode="--mark-consulted", data_dir=data_dir)
+        prompt = "핸들 변경(ai_ai.hee26→obesa.ai)으로 미측정이던 걸 판정해줘"
+        assert _call(session_id="sess-1", data_dir=data_dir, tool_input={"prompt": prompt}) is None
